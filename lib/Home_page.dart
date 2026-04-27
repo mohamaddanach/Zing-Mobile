@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:zing/home.dart';
 import 'package:zing/network.dart';
 import 'package:zing/login_screen.dart';
+import 'package:zing/prize.dart';
 
 class HomePage extends StatefulWidget {
   final String username;
@@ -58,11 +59,12 @@ class _HomePageState extends State<HomePage> {
 
             _pages = [
               const home(),
-              net(
+              Net(
                 username: widget.username,
                 userphonenumber: fetchedPhone,
                 country: fetchedCountry, // Passing the new field
               ),
+              const prize(),
             ];
             isLoading = false;
           });
@@ -148,7 +150,9 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      body: _pages[currentPageIndex],
+      body: currentPageIndex < _pages.length
+          ? _pages[currentPageIndex]
+          : const SizedBox(),
       bottomNavigationBar: NavigationBar(
         onDestinationSelected: (int index) {
           setState(() {
@@ -167,6 +171,11 @@ class _HomePageState extends State<HomePage> {
             selectedIcon: Icon(Icons.hub),
             icon: Icon(Icons.hub_outlined),
             label: 'Network',
+          ),
+          NavigationDestination(
+            selectedIcon: Icon(Icons.emoji_events),
+            icon: Icon(Icons.emoji_events_outlined),
+            label: 'Prizes',
           ),
         ],
       ),

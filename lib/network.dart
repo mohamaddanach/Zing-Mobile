@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class net extends StatefulWidget {
+class Net extends StatefulWidget {
   final String username;
   final String userphonenumber;
   final String country;
 
-  const net({
+  const Net({
     super.key,
     required this.username,
     required this.userphonenumber,
@@ -13,28 +14,31 @@ class net extends StatefulWidget {
   });
 
   @override
-  State<net> createState() => _netState();
+  State<Net> createState() => _NetState();
 }
 
-class _netState extends State<net> {
+class _NetState extends State<Net> {
   final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text("Zing Network",
+            style: TextStyle(color: Color(0xFF0F172A))),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20.0),
           child: Column(
             children: [
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
+
+              // 🔍 Search Bar (optional filtering later)
               Container(
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
@@ -44,47 +48,146 @@ class _netState extends State<net> {
                   controller: _searchController,
                   decoration: const InputDecoration(
                     hintText: "Search in Network...",
-                    prefixIcon: Icon(Icons.search, color: Color(0xFF0F172A)),
+                    prefixIcon:
+                    Icon(Icons.search, color: Color(0xFF0F172A)),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 15),
+                    contentPadding:
+                    EdgeInsets.symmetric(vertical: 15),
                   ),
-                  onChanged: (value) {
-                    print("Searching for: $value");
-                  },
                 ),
               ),
 
+              const SizedBox(height: 20),
+
+              // 🔥 MAIN LOGIC
               Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.hub, size: 80, color: Color(0xFF0F172A)),
-                      const SizedBox(height: 20),
-                      const Text(
-                        "Network Details",
-                        style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A)
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      Text(
-                        "Username: ${widget.username}",
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        "Phone: ${widget.userphonenumber}",
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      Text(
-                        "Country: ${widget.country}",
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                    ],
-                  ),
+                child: StreamBuilder<QuerySnapshot>(
+                  // 1️⃣ Listen to friends_list
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(widget.userphonenumber)
+                      .collection('friends_list')
+                      .snapshots(),
+                  builder: (context, friendsSnapshot) {
+                    if (friendsSnapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(
+                          child: CircularProgressIndicator());
+                    }
+
+                    // 📌 Extract friend phone numbers
+                    final friendsPhones = friendsSnapshot.data!.docs
+                        .map((doc) => doc['phone_number'] as String)
+                        .toSet();
+
+                    // 2️⃣ Listen to all users
+                    return StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .where('country',
+                          isEqualTo: widget.country)
+                          .snapshots(),
+                      builder: (context, usersSnapshot) {
+                        if (usersSnapshot.hasError) {
+                          return const Center(
+                              child: Text("Connection Error"));
+                        }
+
+                        if (usersSnapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+
+                        // 🔥 FILTER USERS
+                        final otherUsers =
+                        usersSnapshot.data!.docs.where((doc) {
+                          final data =
+                          doc.data() as Map<String, dynamic>;
+
+                          final phone = data['phone_number'];
+
+                          return phone !=
+                              widget.userphonenumber &&
+                              !friendsPhones.contains(phone);
+                        }).toList();
+
+                        if (otherUsers.isEmpty) {
+                          return const Center(
+                            child: Text("No new users to add."),
+                          );
+                        }
+
+                        return ListView.builder(
+                          itemCount: otherUsers.length,
+                          itemBuilder: (context, index) {
+                            var userData =
+                            otherUsers[index].data()
+                            as Map<String, dynamic>;
+
+                            String name =
+                                userData['username'] ?? 'User';
+                            String phone =
+                                userData['phone_number'] ??
+                                    'No number';
+                            String imageUrl =
+                                userData['profile_url'] ?? '';
+
+                            return Card(
+                              margin:
+                              const EdgeInsets.only(bottom: 12),
+                              elevation: 0,
+                              color: Colors.grey[50],
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                BorderRadius.circular(12),
+                                side: BorderSide(
+                                    color: Colors.grey[200]!),
+                              ),
+                              child: ListTile(
+                                contentPadding:
+                                const EdgeInsets.all(10),
+                                leading: CircleAvatar(
+                                  radius: 25,
+                                  backgroundColor:
+                                  const Color(0xFF0F172A),
+                                  backgroundImage:
+                                  imageUrl.isNotEmpty
+                                      ? NetworkImage(imageUrl)
+                                      : null,
+                                  child: imageUrl.isEmpty
+                                      ? const Icon(Icons.person,
+                                      color: Colors.white,
+                                      size: 30)
+                                      : null,
+                                ),
+                                title: Text(
+                                  name,
+                                  style: const TextStyle(
+                                      fontWeight:
+                                      FontWeight.bold),
+                                ),
+                                subtitle: Text(phone),
+                                trailing: ElevatedButton(
+                                  onPressed: () => _addFriend(
+                                      name, phone, imageUrl),
+                                  style:
+                                  ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                    const Color(0xFF0F172A),
+                                    foregroundColor:
+                                    Colors.white,
+                                  ),
+                                  child:
+                                  const Text("Add Friend"),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
             ],
@@ -92,5 +195,29 @@ class _netState extends State<net> {
         ),
       ),
     );
+  }
+
+  // ✅ Add friend
+  Future<void> _addFriend(
+      String name, String phone, String image) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userphonenumber)
+          .collection('friends_list')
+          .doc(phone) // unique per friend
+          .set({
+        'username': name,
+        'phone_number': phone,
+        'profile_url': image,
+        'added_on': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Added $name as a friend!")),
+      );
+    } catch (e) {
+      print("Error adding friend: $e");
+    }
   }
 }
