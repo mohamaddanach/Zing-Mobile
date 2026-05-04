@@ -1,7 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:share_plus/share_plus.dart';
 
 class home extends StatefulWidget {
   const home({super.key});
@@ -12,166 +12,351 @@ class home extends StatefulWidget {
 
 class _homeState extends State<home> {
 
-  // 🎯 FIX POINTS (2 decimals)
-  double calcPoints(data) {
+  // 🎯 POINTS
+  double calcPoints(Map<String, dynamic> data) {
     double added = (data['added_value'] ?? 0).toDouble();
     double bonus = (data['bonus_reserve'] ?? 0).toDouble();
-    double total = added + bonus;
-    return double.parse(total.toStringAsFixed(2));
+    return added + bonus;
   }
 
-  // 🎨 PRODUCT CARD
-  Widget productCard(Map<String, dynamic> data) {
-    return Container(
-      width: 180,
-      margin: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.blue.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.red.withOpacity(0.1),
-            blurRadius: 6,
-            spreadRadius: 2,
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+  // 🖼 IMAGE
+  Widget _imageWidget(Map<String, dynamic> data) {
+    try {
+      final images = data['images'];
+      String value;
 
-          // IMAGE
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-            child: Image.network(
-              (data['images'] != null && data['images'].isNotEmpty)
-                  ? data['images'][0]
-                  : "https://via.placeholder.com/150",
-              height: 100,
-              width: double.infinity,
-              fit: BoxFit.cover,
+      if (images is List && images.isNotEmpty) {
+        value = images[0].toString();
+      } else if (images is String) {
+        value = images;
+      } else {
+        return Image.network("https://via.placeholder.com/150", fit: BoxFit.cover);
+      }
+
+      if (value.startsWith("http")) {
+        return Image.network(value, fit: BoxFit.cover);
+      }
+
+      if (value.contains(",")) {
+        value = value.split(",").last;
+      }
+
+      return Image.memory(base64Decode(value), fit: BoxFit.cover);
+
+    } catch (_) {
+      return Image.network("https://via.placeholder.com/150", fit: BoxFit.cover);
+    }
+  }
+
+  // 🚀 PURCHASE FUNCTION
+  Future<void> processPurchase(
+      Map<String, dynamic> productData, int quantity) async {
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception("User not logged in");
+
+    final firestore = FirebaseFirestore.instance;
+
+    // 🔢 COUNTER
+    final counterRef =
+    firestore.collection("counters").doc("transactions");
+
+    final newId = await firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(counterRef);
+
+      int current = 1000;
+
+      if (snapshot.exists) {
+        final data = snapshot.data() as Map<String, dynamic>;
+        current = (data["last_id"] ?? 1000);
+      }
+
+      final next = current + 1;
+
+      transaction.set(
+        counterRef,
+        {"last_id": next},
+        SetOptions(merge: true),
+      );
+
+      return next;
+    });
+
+    final transactionRef =
+    firestore.collection("transactions").doc(newId.toString());
+
+    final financeRef =
+    firestore.collection("transaction_finance").doc(newId.toString());
+
+    // 👤 USER DATA
+    Map<String, dynamic> userData = {};
+    String phone = "";
+
+    final userDoc =
+    await firestore.collection("users").doc(user.uid).get();
+
+    if (userDoc.exists && userDoc.data() != null) {
+      userData = userDoc.data()!;
+      phone = userData['phone_number'] ?? "";
+    }
+
+    if (phone.isEmpty) {
+      phone = user.phoneNumber ?? "";
+    }
+
+    // 💰 CALCULATIONS
+    double price = (productData['priceonplatform'] ?? 0).toDouble();
+    double total = quantity * price;
+    double profit =
+        (productData['profit_one_item'] ?? 0).toDouble() * quantity;
+    double bonus =
+        (productData['bonus_reserve'] ?? 0).toDouble() * quantity;
+
+    double pointsEarned =
+        calcPoints(productData) * quantity;
+
+    // ⚡ WRITE TRANSACTIONS
+    await Future.wait([
+      transactionRef.set({
+        "transaction_id": newId,
+        "user_id": user.uid,
+        "username": userData['username'] ?? "Unknown",
+        "phone": phone,
+        "country": userData['country'] ?? "",
+        "seller_name": productData['seller_name'] ?? "",
+        "product_name": productData['product_name'] ?? "",
+        "quantity": quantity,
+        "total": total,
+        "status": "pending",
+        "timestamp": FieldValue.serverTimestamp(),
+      }),
+
+      financeRef.set({
+        "transaction_id": newId,
+        "seller_name": productData['seller_name'] ?? "",
+        "product_name": productData['product_name'] ?? "",
+        "total": total,
+        "profit": profit,
+        "bonus_reserve": bonus,
+        "quantity": quantity,
+        "timestamp": FieldValue.serverTimestamp(),
+      }),
+    ]);
+
+    // ⭐ UPDATE USER POINTS (NEW FEATURE)
+    try {
+      final usersRef = firestore.collection("users");
+
+      final query = await usersRef
+          .where("phone_number", isEqualTo: phone)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final userRef = query.docs.first.reference;
+
+        await firestore.runTransaction((tx) async {
+          final snap = await tx.get(userRef);
+
+          final currentPoints =
+          (snap.data()?["number_of_points"] ?? 0).toDouble();
+
+          tx.update(userRef, {
+            "number_of_points": currentPoints + pointsEarned,
+          });
+        });
+      }
+    } catch (e) {
+      print("❌ Points update error: $e");
+    }
+  }
+
+  // 🛒 DIALOG
+  void showPurchaseDialog(Map<String, dynamic> data) {
+    final qtyController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(data['product_name'] ?? ""),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: qtyController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Quantity",
+                border: OutlineInputBorder(),
+              ),
             ),
+            const SizedBox(height: 10),
+            Text("Price: \$${data['priceonplatform']}"),
+            Text("Points: ${calcPoints(data)}"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(context),
           ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("Confirm"),
+            onPressed: () async {
+              final qty = int.tryParse(qtyController.text) ?? 0;
+              if (qty <= 0) return;
 
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              Navigator.pop(context);
 
-                Text(
-                  data['product_name'] ?? "",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) =>
+                const Center(child: CircularProgressIndicator()),
+              );
+
+              try {
+                await processPurchase(data, qty);
+
+                if (mounted) Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("✅ Order placed successfully"),
+                    backgroundColor: Colors.green,
                   ),
-                ),
+                );
+              } catch (e) {
+                if (mounted) Navigator.pop(context);
 
-                Text(
-                  data['sub_title'] ?? "",
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
-                ),
-
-                const SizedBox(height: 5),
-
-                Text(
-                  "Price: ${data['priceonplatform']} \$",
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                Text(
-                  "Points: ${calcPoints(data).toStringAsFixed(2)}",
-                  style: const TextStyle(
-                    color: Colors.blue,
-                  ),
-                ),
-
-                Text(
-                  "Seller: ${data['seller_name'] ?? ""}",
-                  style: const TextStyle(fontSize: 12),
-                ),
-
-                const SizedBox(height: 8),
-
-                // ACTION ROW
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-
-                    // BUY BUTTON
-                    ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                      ),
-                      child: const Text("Buy"),
-                    ),
-
-                    // SAVE + SHARE
-                    Row(
-                      children: [
-
-                        IconButton(
-                          icon: const Icon(Icons.bookmark_border, color: Colors.blue),
-                          onPressed: () {},
-                        ),
-
-                        IconButton(
-                          icon: const Icon(Icons.share, color: Colors.red),
-                          onPressed: () {
-                            final name = data['product_name'] ?? '';
-                            final price = data['priceonplatform'] ?? '';
-
-                            Share.share("$name - $price\$");
-                          },
-                        ),
-                      ],
-                    )
-
-                  ],
-                )
-
-              ],
-            ),
-          )
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("❌ $e")),
+                );
+              }
+            },
+          ),
         ],
       ),
     );
   }
 
-  // 📦 CATEGORY SECTION
-  Widget categorySection(String title, String collection, Color color) {
+  // 🎨 PRODUCT CARD (UI)
+  Widget productCard(Map<String, dynamic> data) {
+    return Container(
+      width: 190,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+
+          Expanded(
+            flex: 5,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: _imageWidget(data),
+              ),
+            ),
+          ),
+
+          Expanded(
+            flex: 5,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+
+                  Text(
+                    data['product_name'] ?? "",
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  Text(
+                    "\$${data['priceonplatform']}",
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  Text(
+                    "${calcPoints(data)} pts",
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 32,
+                    child: ElevatedButton(
+                      onPressed: () => showPurchaseDialog(data),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text("Buy"),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 📦 CATEGORY
+  Widget categorySection(String title, String collection, IconData icon) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
 
         Padding(
-          padding: const EdgeInsets.all(10),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.red),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
 
         SizedBox(
-          height: 320,
+          height: 270,
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection(collection)
-                .where('status', isEqualTo: false)
                 .snapshots(),
             builder: (context, snapshot) {
 
@@ -179,13 +364,13 @@ class _homeState extends State<home> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final docs = snapshot.data!.docs;
-
               return ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: docs.length,
-                itemBuilder: (context, index) {
-                  final data = docs[index].data() as Map<String, dynamic>;
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, i) {
+                  final data =
+                  snapshot.data!.docs[i].data()
+                  as Map<String, dynamic>;
                   return productCard(data);
                 },
               );
@@ -199,22 +384,47 @@ class _homeState extends State<home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5F5F5),
 
       appBar: AppBar(
-        backgroundColor: Colors.red,
-        title: const Text("Zingo"),
+        backgroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
+        title: const Text(
+          "Zingo",
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
 
       body: SingleChildScrollView(
         child: Column(
           children: [
 
-            categorySection("Electronics", "products_electronics", Colors.blue),
-            categorySection("Fashion", "products_fashion", Colors.red),
-            categorySection("Home", "products_home", Colors.blue),
+            const SizedBox(height: 10),
 
+            categorySection(
+              "Electronics",
+              "products_electronics",
+              Icons.devices,
+            ),
+
+            categorySection(
+              "Fashion",
+              "products_fashion",
+              Icons.checkroom,
+            ),
+
+            categorySection(
+              "Home",
+              "products_home",
+              Icons.home,
+            ),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),

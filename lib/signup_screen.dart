@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // ADD THIS
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
@@ -15,225 +15,210 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final _username = TextEditingController();
-  final _phonenumber = TextEditingController();
+  final _phone = TextEditingController();
   final _password = TextEditingController();
 
   String selectedCountry = 'Lebanon';
   List<String> countries = ['Lebanon', 'Qatar', 'UAE', 'KSA'];
 
-  File? _selectedImage;
+  File? _image;
   Uint8List? _webImage;
 
-  Future<void> _pickImage() async {
-    final returnedImage = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (returnedImage == null) return;
+  bool loading = false;
+
+  Future<void> pickImage() async {
+    final img = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (img == null) return;
 
     if (kIsWeb) {
-      final bytes = await returnedImage.readAsBytes();
-      setState(() => _webImage = bytes);
+      _webImage = await img.readAsBytes();
     } else {
-      setState(() => _selectedImage = File(returnedImage.path));
+      _image = File(img.path);
     }
+    setState(() {});
   }
 
-  void handleSignup() async {
+  Future<void> signup() async {
     String name = _username.text.trim();
+    String phone = _phone.text.trim();
     String pass = _password.text.trim();
-    String phone = _phonenumber.text.trim(); // Get the phone number
 
-    if (name.length < 3 || phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please provide a name and phone number")),
-      );
-      return;
-    }
-    if (pass.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password must be at least 6 characters")),
-      );
+    if (name.length < 3 || phone.isEmpty || pass.length < 6) {
+      _show("Fill all fields correctly");
       return;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Colors.blueAccent)),
-    );
+    setState(() => loading = true);
 
     try {
-      String sanitizedName = name.replaceAll(' ', '').toLowerCase();
-      String fakeEmail = "$sanitizedName@zing.com";
+      // 🔥 CHECK IF PHONE ALREADY EXISTS
+      QuerySnapshot existing = await FirebaseFirestore.instance
+          .collection("users")
+          .where("phone_number", isEqualTo: phone)
+          .get();
 
-      print("Final Unique Email: $fakeEmail");
+      if (existing.docs.isNotEmpty) {
+        setState(() => loading = false);
+        _show("Phone number already registered");
+        return;
+      }
 
-      UserCredential userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: fakeEmail, password: pass);
+      // 🔥 AUTH EMAIL FROM PHONE
+      String email = "$phone@zing.com";
 
-      String uid = userCredential.user!.uid;
+      UserCredential cred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: pass);
+
+      String uid = cred.user!.uid;
+
+      // 🔥 UPLOAD IMAGE
       String imageUrl = "";
 
-      // 2. Upload Image to Firebase Storage
       if (kIsWeb && _webImage != null) {
-        Reference ref = FirebaseStorage.instance.ref().child('user_images').child('$uid.jpg');
+        final ref = FirebaseStorage.instance.ref("users/$uid.jpg");
         await ref.putData(_webImage!);
         imageUrl = await ref.getDownloadURL();
-      } else if (_selectedImage != null) {
-        Reference ref = FirebaseStorage.instance.ref().child('user_images').child('$uid.jpg');
-        await ref.putFile(_selectedImage!);
+      } else if (_image != null) {
+        final ref = FirebaseStorage.instance.ref("users/$uid.jpg");
+        await ref.putFile(_image!);
         imageUrl = await ref.getDownloadURL();
       }
 
-      if (!mounted) return;
-
-      // 3. Save to Firestore
+      // 🔥 SAVE USER
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'username': name,
-        'phone_number': phone,
-        'password' : pass,
-        'country': selectedCountry,
-        'number_of_points': 0,
-        'friends': [],
-        'role': 'buyer',
-        'profile_url': imageUrl,
-        'created_at': FieldValue.serverTimestamp(),
+        "username": name,
+        "phone_number": phone,
+        "country": selectedCountry,
+        "profile_url": imageUrl,
+        "number_of_points": 0,
+        "friends": [],
+        "role": "buyer",
+        "created_at": FieldValue.serverTimestamp(),
       });
 
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading spinner
+      setState(() => loading = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Success! Account created."), backgroundColor: Colors.green),
-      );
+      _show("Account created successfully", success: true);
 
       Navigator.pop(context);
 
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
+      setState(() => loading = false);
 
-      String errorMsg = e.message ?? "Signup Failed";
+      String msg = "Signup failed";
+
       if (e.code == 'email-already-in-use') {
-        errorMsg = "An account with this phone number already exists.";
+        msg = "This phone is already registered";
+      } else if (e.code == 'weak-password') {
+        msg = "Password is too weak";
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
-      );
+      _show(msg);
     } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      print("System Error: $e");
+      setState(() => loading = false);
+      _show("Error: $e");
     }
+  }
+
+  void _show(String msg, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _username.dispose();
+    _phone.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Widget buildText(TextEditingController c, String t, IconData i,
+      {bool ob = false}) {
+    return TextField(
+      controller: c,
+      obscureText: ob,
+      decoration: InputDecoration(
+        labelText: t,
+        prefixIcon: Icon(i),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFB71C1C),
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFB71C1C), Colors.white],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
-          child: Column(
-            children: [
-              const Text("ZING Sign Up",
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2)),
-              const SizedBox(height: 30),
-
-              GestureDetector(
-                onTap: _pickImage,
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.white,
-                  backgroundImage: kIsWeb
-                      ? (_webImage != null ? MemoryImage(_webImage!) : null) as ImageProvider?
-                      : (_selectedImage != null ? FileImage(_selectedImage!) : null) as ImageProvider?,
-                  child: (kIsWeb ? _webImage == null : _selectedImage == null)
-                      ? const Icon(Icons.person_add, size: 40, color: Colors.blueAccent)
-                      : null,
-                ),
+      appBar: AppBar(backgroundColor: Colors.red),
+      body: Stack(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.red, Colors.white],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
-              const SizedBox(height: 10),
-              const Text("Optional Profile Image", style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
-              const SizedBox(height: 30),
-
-              _buildTextField(_username, "Your Name", Icons.person_outline),
-              const SizedBox(height: 15),
-              _buildTextField(_phonenumber, "Phone Number", Icons.phone_android),
-              const SizedBox(height: 15),
-              _buildTextField(_password, "Password", Icons.lock_outline, obscure: true),
-              const SizedBox(height: 20),
-
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.blueAccent, width: 1.5),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: selectedCountry,
-                    isExpanded: true,
-                    items: countries.map((String country) {
-                      return DropdownMenuItem(
-                        value: country,
-                        child: Text(country, style: const TextStyle(color: Colors.black)),
-                      );
-                    }).toList(),
-                    onChanged: (value) => setState(() => selectedCountry = value!),
+            ),
+            child: ListView(
+              children: [
+                GestureDetector(
+                  onTap: pickImage,
+                  child: CircleAvatar(
+                    radius: 50,
+                    backgroundImage: kIsWeb
+                        ? (_webImage != null
+                        ? MemoryImage(_webImage!)
+                        : null)
+                        : (_image != null
+                        ? FileImage(_image!)
+                        : null) as ImageProvider?,
+                    child: (_image == null && _webImage == null)
+                        ? const Icon(Icons.add_a_photo)
+                        : null,
                   ),
                 ),
-              ),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: handleSignup,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                  child: const Text("CREATE ACCOUNT", style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+                const SizedBox(height: 20),
 
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool obscure = false}) {
-    return TextField(
-      controller: controller,
-      obscureText: obscure,
-      style: const TextStyle(color: Colors.black),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.blueAccent),
-        prefixIcon: Icon(icon, color: Colors.blueAccent),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.blueAccent),
-        ),
+                buildText(_username, "Username", Icons.person),
+                const SizedBox(height: 10),
+
+                buildText(_phone, "Phone", Icons.phone),
+                const SizedBox(height: 10),
+
+                buildText(_password, "Password", Icons.lock, ob: true),
+                const SizedBox(height: 10),
+
+                DropdownButton<String>(
+                  value: selectedCountry,
+                  isExpanded: true,
+                  items: countries
+                      .map((e) =>
+                      DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (v) => setState(() => selectedCountry = v!),
+                ),
+
+                const SizedBox(height: 20),
+
+                ElevatedButton(
+                  onPressed: signup,
+                  child: const Text("SIGN UP"),
+                )
+              ],
+            ),
+          ),
+
+          if (loading)
+            const Center(child: CircularProgressIndicator()),
+        ],
       ),
     );
   }

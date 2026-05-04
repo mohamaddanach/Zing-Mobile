@@ -8,12 +8,18 @@ import 'package:zing/prize.dart';
 
 class HomePage extends StatefulWidget {
   final String username;
-  final String password;
+  final String phone;
+  final String country;
+  final String profileUrl;
+  final int points;
 
   const HomePage({
     super.key,
     required this.username,
-    required this.password,
+    required this.phone,
+    required this.country,
+    required this.profileUrl,
+    required this.points,
   });
 
   @override
@@ -22,9 +28,14 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int currentPageIndex = 0;
-  String? ph_nbr;
+
+  String? phone;
   String? country;
+  String? profileUrl;
+  int points = 0;
+
   bool isLoading = true;
+
   List<Widget> _pages = [];
 
   @override
@@ -33,57 +44,69 @@ class _HomePageState extends State<HomePage> {
     _fetchUserData();
   }
 
-  // Inside _HomePageState
-  String? userCountry; // New variable
-
   void _fetchUserData() async {
-    final String? userId = FirebaseAuth.instance.currentUser?.uid;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
-    if (userId != null) {
-      try {
-        DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
-            .collection("users")
-            .doc(userId)
-            .get();
+    if (uid == null) {
+      _logout();
+      return;
+    }
 
-        if (documentSnapshot.exists) {
-          Map<String, dynamic> userData = documentSnapshot.data() as Map<String, dynamic>;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(uid)
+          .get();
 
-          // Extracting all three fields now
-          String fetchedPhone = userData['phone_number']?.toString() ?? "No Phone";
-          String fetchedCountry = userData['country']?.toString() ?? "No Country";
-
-          setState(() {
-            ph_nbr = fetchedPhone;
-            userCountry = fetchedCountry;
-
-            _pages = [
-              const home(),
-              Net(
-                username: widget.username,
-                userphonenumber: fetchedPhone,
-                country: fetchedCountry, // Passing the new field
-              ),
-              const prize(),
-            ];
-            isLoading = false;
-          });
-        } else {
-          setState(() => isLoading = false);
-        }
-      } catch (e) {
-        debugPrint("Error: $e");
-        setState(() => isLoading = false);
+      if (!doc.exists) {
+        _logout();
+        return;
       }
+
+      final data = doc.data() as Map<String, dynamic>;
+
+      setState(() {
+        phone = data['phone_number'] ?? "";
+        country = data['country'] ?? "";
+        profileUrl = data['profile_url'] ?? "";
+        points = data['number_of_points'] ?? 0;
+
+        _pages = [
+          const home(),
+          Net(
+            username: widget.username,
+            userphonenumber: phone ?? "",
+            country: country ?? "",
+          ),
+          const prize(),
+        ];
+
+        isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Error loading user: $e");
+      setState(() => isLoading = false);
     }
   }
+
+  void _logout() async {
+    await FirebaseAuth.instance.signOut();
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Show a loader while fetching data from Firestore
-    if (isLoading || ph_nbr == null) {
+    if (isLoading) {
       return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF0F172A))),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF0F172A)),
+        ),
       );
     }
 
@@ -91,21 +114,15 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text("Zing Home", style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF0F172A),
-        iconTheme: const IconThemeData(color: Colors.white), // Makes drawer icon white
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (!mounted) return;
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (route) => false,
-              );
-            },
+            onPressed: _logout,
           )
         ],
       ),
+
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -115,67 +132,68 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const CircleAvatar(
-                    backgroundColor: Colors.amber,
+                  CircleAvatar(
                     radius: 30,
-                    child: Icon(Icons.person, color: Colors.white, size: 35),
+                    backgroundImage: profileUrl != null && profileUrl!.isNotEmpty
+                        ? NetworkImage(profileUrl!)
+                        : null,
+                    child: profileUrl == null || profileUrl!.isEmpty
+                        ? const Icon(Icons.person, color: Colors.white)
+                        : null,
                   ),
                   const SizedBox(height: 10),
                   Text(
                     "Hey ${widget.username}!",
                     style: const TextStyle(color: Colors.white, fontSize: 18),
-                  )
+                  ),
+                  Text(
+                    "Points: $points",
+                    style: const TextStyle(color: Colors.amber),
+                  ),
                 ],
               ),
             ),
+
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text("Settings"),
-              onTap: () {
-                Navigator.pop(context); // Close the drawer
-              },
+              onTap: () => Navigator.pop(context),
             ),
+
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text("Logout", style: TextStyle(color: Colors.red)),
-              onTap: () async {
-                await FirebaseAuth.instance.signOut();
-                if (!mounted) return;
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                      (route) => false,
-                );
-              },
-            )
+              onTap: _logout,
+            ),
           ],
         ),
       ),
+
       body: currentPageIndex < _pages.length
           ? _pages[currentPageIndex]
           : const SizedBox(),
+
       bottomNavigationBar: NavigationBar(
-        onDestinationSelected: (int index) {
-          setState(() {
-            currentPageIndex = index;
-          });
+        selectedIndex: currentPageIndex,
+        onDestinationSelected: (index) {
+          setState(() => currentPageIndex = index);
         },
         indicatorColor: Colors.amber,
-        selectedIndex: currentPageIndex,
-        destinations: const <Widget>[
+        destinations: const [
           NavigationDestination(
-            selectedIcon: Icon(Icons.home),
             icon: Icon(Icons.home_outlined),
-            label: 'Home',
+            selectedIcon: Icon(Icons.home),
+            label: "Home",
           ),
           NavigationDestination(
-            selectedIcon: Icon(Icons.hub),
             icon: Icon(Icons.hub_outlined),
-            label: 'Network',
+            selectedIcon: Icon(Icons.hub),
+            label: "Network",
           ),
           NavigationDestination(
-            selectedIcon: Icon(Icons.emoji_events),
             icon: Icon(Icons.emoji_events_outlined),
-            label: 'Prizes',
+            selectedIcon: Icon(Icons.emoji_events),
+            label: "Prizes",
           ),
         ],
       ),

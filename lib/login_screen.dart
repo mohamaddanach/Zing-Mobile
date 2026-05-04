@@ -12,70 +12,104 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _usernameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  String normalizePhone(String phone) {
+    return phone
+        .trim()
+        .replaceAll(" ", "")
+        .replaceAll("+", "")
+        .replaceAll("-", "");
+  }
+
   void _handleLogin() async {
-    String nameInput = _usernameController.text.trim();
+    String phoneInput = normalizePhone(_phoneController.text);
     String passwordInput = _passwordController.text.trim();
 
-    if (nameInput.isEmpty || passwordInput.isEmpty) {
-      _showError("Please enter both username and password");
+    if (phoneInput.isEmpty || passwordInput.isEmpty) {
+      _showError("Please enter both phone and password");
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      String fakeEmail = "$nameInput@zing.com";
+      // 🔥 IMPORTANT: must match signup EXACTLY
+      String fakeEmail = "$phoneInput@zing.com";
 
-      print("Attempting login for: $fakeEmail");
+      print("LOGIN DEBUG EMAIL: $fakeEmail");
+      print("LOGIN DEBUG PASS: $passwordInput");
 
-      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      // 🔐 AUTH
+      UserCredential userCredential =
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: fakeEmail,
         password: passwordInput,
       );
 
+      String uid = userCredential.user!.uid;
+
+      // 📦 FIRESTORE
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(userCredential.user!.uid)
+          .doc(uid)
           .get();
+
+      if (!userDoc.exists) {
+        _showError("User profile missing in database");
+        return;
+      }
+
+      Map<String, dynamic> userData =
+      userDoc.data() as Map<String, dynamic>;
+
+      String username = userData['username'] ?? "";
+      String phone = userData['phone_number'] ?? "";
+      String country = userData['country'] ?? "";
+      String profileUrl = userData['profile_url'] ?? "";
+      int points = (userData['number_of_points'] ?? 0);
 
       if (!mounted) return;
 
-      if (userDoc.exists) {
-        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-
-        String nameDB = userData['username'] ?? nameInput;
-        String passDB = userData['password'] ?? passwordInput;
-
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomePage(
-              username: nameDB,
-              password: passDB,
-            ),
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomePage(
+            username: username,
+            phone: phone,
+            country: country,
+            profileUrl: profileUrl,
+            points: points,
           ),
-              (route) => false,
-        );
-      } else {
-        _showError("User profile not found in database.");
-      }
+        ),
+            (route) => false,
+      );
 
     } on FirebaseAuthException catch (e) {
       String message = "Login Failed";
-      if (e.code == 'user-not-found') {
-        message = "No account found for '$nameInput'.";
-      } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        message = "Incorrect password. Please try again.";
-      } else {
-        message = e.message ?? "An error occurred.";
+
+      switch (e.code) {
+        case 'user-not-found':
+          message = "No account found for this phone";
+          break;
+        case 'wrong-password':
+        case 'invalid-credential':
+          message = "Incorrect password";
+          break;
+        case 'invalid-email':
+          message = "Phone format mismatch";
+          break;
+        default:
+          message = e.message ?? "Authentication error";
       }
+
       _showError(message);
+
     } catch (e) {
       _showError("System Error: $e");
+
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -88,14 +122,20 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
+  void dispose() {
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Dark Navy
+      backgroundColor: const Color(0xFF0F172A),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(30.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
                 "ZING",
@@ -106,11 +146,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   letterSpacing: 8,
                 ),
               ),
-              const Text("E-COMMERCE ECOSYSTEM",
-                  style: TextStyle(color: Colors.blueAccent, fontSize: 12, letterSpacing: 2)),
+              const Text(
+                "E-COMMERCE ECOSYSTEM",
+                style: TextStyle(
+                  color: Colors.blueAccent,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                ),
+              ),
               const SizedBox(height: 60),
 
-              // Login Card
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -121,12 +166,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   children: [
                     TextField(
-                      controller: _usernameController,
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration(
-                        hintText: "Username",
+                        hintText: "Phone Number",
                         hintStyle: TextStyle(color: Colors.white30),
-                        prefixIcon: Icon(Icons.person_outline, color: Colors.blueAccent),
+                        prefixIcon:
+                        Icon(Icons.phone, color: Colors.blueAccent),
                         border: InputBorder.none,
                       ),
                     ),
@@ -138,29 +185,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: const InputDecoration(
                         hintText: "Password",
                         hintStyle: TextStyle(color: Colors.white30),
-                        prefixIcon: Icon(Icons.lock_outline, color: Colors.blueAccent),
+                        prefixIcon:
+                        Icon(Icons.lock_outline, color: Colors.blueAccent),
                         border: InputBorder.none,
                       ),
                     ),
                   ],
                 ),
               ),
+
               const SizedBox(height: 30),
 
-              // Login Button
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("LOG IN", style: TextStyle(fontWeight: FontWeight.bold)),
+                      : const Text("LOG IN"),
                 ),
               ),
 
@@ -170,11 +213,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SignupScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const SignupScreen()),
                   );
                 },
-                child: const Text("Don't have an account? Signup",
-                    style: TextStyle(color: Colors.white70)),
+                child: const Text(
+                  "Don't have an account? Signup",
+                  style: TextStyle(color: Colors.white70),
+                ),
               ),
             ],
           ),
