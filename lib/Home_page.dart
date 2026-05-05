@@ -5,13 +5,14 @@ import 'package:zing/home.dart';
 import 'package:zing/network.dart';
 import 'package:zing/login_screen.dart';
 import 'package:zing/prize.dart';
+import 'package:zing/messages.dart';
 
 class HomePage extends StatefulWidget {
   final String username;
   final String phone;
   final String country;
   final String profileUrl;
-  final int points;
+  final double points;
 
   const HomePage({
     super.key,
@@ -32,7 +33,9 @@ class _HomePageState extends State<HomePage> {
   String? phone;
   String? country;
   String? profileUrl;
-  int points = 0;
+
+  // ✅ FIX: MUST BE DOUBLE (NOT INT)
+  double points = 0.0;
 
   bool isLoading = true;
 
@@ -69,7 +72,9 @@ class _HomePageState extends State<HomePage> {
         phone = data['phone_number'] ?? "";
         country = data['country'] ?? "";
         profileUrl = data['profile_url'] ?? "";
-        points = data['number_of_points'] ?? 0;
+
+        // ✅ FIX: FORCE DOUBLE
+        points = (data['number_of_points'] ?? 0).toDouble();
 
         _pages = [
           const home(),
@@ -78,7 +83,12 @@ class _HomePageState extends State<HomePage> {
             userphonenumber: phone ?? "",
             country: country ?? "",
           ),
-          const prize(),
+          Messages(
+            username: widget.username,
+            userphonenumber: phone ?? "",
+            country: country ?? "",
+          ),
+          prize(),
         ];
 
         isLoading = false;
@@ -112,7 +122,10 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Zing Home", style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Zing Home",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -134,7 +147,8 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   CircleAvatar(
                     radius: 30,
-                    backgroundImage: profileUrl != null && profileUrl!.isNotEmpty
+                    backgroundImage:
+                    profileUrl != null && profileUrl!.isNotEmpty
                         ? NetworkImage(profileUrl!)
                         : null,
                     child: profileUrl == null || profileUrl!.isEmpty
@@ -162,7 +176,10 @@ class _HomePageState extends State<HomePage> {
 
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text("Logout", style: TextStyle(color: Colors.red)),
+              title: const Text(
+                "Logout",
+                style: TextStyle(color: Colors.red),
+              ),
               onTap: _logout,
             ),
           ],
@@ -189,6 +206,11 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.hub_outlined),
             selectedIcon: Icon(Icons.hub),
             label: "Network",
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.message_outlined),
+            selectedIcon: Icon(Icons.message),
+            label: "Messages",
           ),
           NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),

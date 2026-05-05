@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:share_plus/share_plus.dart';
+import 'package:zing/purchase_dialog.dart';
+import 'select_friend_screen.dart';
+import 'transaction_service.dart';
 class home extends StatefulWidget {
   const home({super.key});
 
@@ -12,14 +15,14 @@ class home extends StatefulWidget {
 
 class _homeState extends State<home> {
 
-  // 🎯 POINTS
+  double clean(double value) =>
+      double.parse(value.toStringAsFixed(2));
+
   double calcPoints(Map<String, dynamic> data) {
-    double added = (data['added_value'] ?? 0).toDouble();
     double bonus = (data['bonus_reserve'] ?? 0).toDouble();
-    return added + bonus;
+    return clean(bonus);
   }
 
-  // 🖼 IMAGE
   Widget _imageWidget(Map<String, dynamic> data) {
     try {
       final images = data['images'];
@@ -48,204 +51,127 @@ class _homeState extends State<home> {
     }
   }
 
-  // 🚀 PURCHASE FUNCTION
-  Future<void> processPurchase(
-      Map<String, dynamic> productData, int quantity) async {
-
+  Future<void> shareProduct(
+      Map<String, dynamic> product,
+      String productId,
+      )  async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw Exception("User not logged in");
+    if (user == null) return;
 
-    final firestore = FirebaseFirestore.instance;
+    final userDoc = await FirebaseFirestore.instance
+        .collection("users")
+        .doc(user.uid)
+        .get();
 
-    // 🔢 COUNTER
-    final counterRef =
-    firestore.collection("counters").doc("transactions");
+    String phone = userDoc.data()?['phone_number'] ?? "";
+    if (phone.isEmpty) phone = user.phoneNumber ?? "";
 
-    final newId = await firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(counterRef);
-
-      int current = 1000;
-
-      if (snapshot.exists) {
-        final data = snapshot.data() as Map<String, dynamic>;
-        current = (data["last_id"] ?? 1000);
-      }
-
-      final next = current + 1;
-
-      transaction.set(
-        counterRef,
-        {"last_id": next},
-        SetOptions(merge: true),
-      );
-
-      return next;
-    });
-
-    final transactionRef =
-    firestore.collection("transactions").doc(newId.toString());
-
-    final financeRef =
-    firestore.collection("transaction_finance").doc(newId.toString());
-
-    // 👤 USER DATA
-    Map<String, dynamic> userData = {};
-    String phone = "";
-
-    final userDoc =
-    await firestore.collection("users").doc(user.uid).get();
-
-    if (userDoc.exists && userDoc.data() != null) {
-      userData = userDoc.data()!;
-      phone = userData['phone_number'] ?? "";
-    }
-
-    if (phone.isEmpty) {
-      phone = user.phoneNumber ?? "";
-    }
-
-    // 💰 CALCULATIONS
-    double price = (productData['priceonplatform'] ?? 0).toDouble();
-    double total = quantity * price;
-    double profit =
-        (productData['profit_one_item'] ?? 0).toDouble() * quantity;
-    double bonus =
-        (productData['bonus_reserve'] ?? 0).toDouble() * quantity;
-
-    double pointsEarned =
-        calcPoints(productData) * quantity;
-
-    // ⚡ WRITE TRANSACTIONS
-    await Future.wait([
-      transactionRef.set({
-        "transaction_id": newId,
-        "user_id": user.uid,
-        "username": userData['username'] ?? "Unknown",
-        "phone": phone,
-        "country": userData['country'] ?? "",
-        "seller_name": productData['seller_name'] ?? "",
-        "product_name": productData['product_name'] ?? "",
-        "quantity": quantity,
-        "total": total,
-        "status": "pending",
-        "timestamp": FieldValue.serverTimestamp(),
-      }),
-
-      financeRef.set({
-        "transaction_id": newId,
-        "seller_name": productData['seller_name'] ?? "",
-        "product_name": productData['product_name'] ?? "",
-        "total": total,
-        "profit": profit,
-        "bonus_reserve": bonus,
-        "quantity": quantity,
-        "timestamp": FieldValue.serverTimestamp(),
-      }),
-    ]);
-
-    // ⭐ UPDATE USER POINTS (NEW FEATURE)
-    try {
-      final usersRef = firestore.collection("users");
-
-      final query = await usersRef
-          .where("phone_number", isEqualTo: phone)
-          .limit(1)
-          .get();
-
-      if (query.docs.isNotEmpty) {
-        final userRef = query.docs.first.reference;
-
-        await firestore.runTransaction((tx) async {
-          final snap = await tx.get(userRef);
-
-          final currentPoints =
-          (snap.data()?["number_of_points"] ?? 0).toDouble();
-
-          tx.update(userRef, {
-            "number_of_points": currentPoints + pointsEarned,
-          });
-        });
-      }
-    } catch (e) {
-      print("❌ Points update error: $e");
-    }
-  }
-
-  // 🛒 DIALOG
-  void showPurchaseDialog(Map<String, dynamic> data) {
-    final qtyController = TextEditingController();
-
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Text(data['product_name'] ?? ""),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: qtyController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Quantity",
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text("Price: \$${data['priceonplatform']}"),
-            Text("Points: ${calcPoints(data)}"),
-          ],
-        ),
-        actions: [
-          TextButton(
-            child: const Text("Cancel"),
-            onPressed: () => Navigator.pop(context),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text("Confirm"),
-            onPressed: () async {
-              final qty = int.tryParse(qtyController.text) ?? 0;
-              if (qty <= 0) return;
-
-              Navigator.pop(context);
-
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) =>
-                const Center(child: CircularProgressIndicator()),
-              );
-
-              try {
-                await processPurchase(data, qty);
-
-                if (mounted) Navigator.pop(context);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("✅ Order placed successfully"),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } catch (e) {
-                if (mounted) Navigator.pop(context);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("❌ $e")),
-                );
-              }
-            },
-          ),
-        ],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.6,
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+
+              Container(
+                width: 40,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+
+              const Text(
+                "Select Friend",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 10),
+
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(phone)
+                      .collection('friends_list')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final friends = snapshot.data!.docs;
+
+                    return ListView.builder(
+                      itemCount: friends.length,
+                      itemBuilder: (context, index) {
+                        final friend =
+                        friends[index].data() as Map<String, dynamic>;
+
+                        return ListTile(
+                          leading: const Icon(Icons.person),
+                          title: Text(friend['username'] ?? ""),
+                          subtitle: Text(friend['phone_number'] ?? ""),
+
+                          onTap: () async {
+                            Navigator.pop(context);
+
+                            // ✅ SAVE SHARE
+                            await FirebaseFirestore.instance
+                                .collection("shared_products")
+                                .add({
+                              "product_id": productId,
+                              "product_name": product['product_name'] ?? "",
+                              "product_image":
+                              (product['images'] is List &&
+                                  product['images'].isNotEmpty)
+                                  ? product['images'][0]
+                                  : product['images'] ?? "",
+
+                              "price": product['priceonplatform'] ?? 0,
+                              "seller_name": product['seller_name'] ?? "",
+
+                              "sender_uid": user.uid,
+                              "sender_phone": phone,
+                              "sender_name": userDoc.data()?['username'] ?? "",
+
+                              "receiver_phone": friend['phone_number'] ?? "",
+                              "receiver_name": friend['username'] ?? "",
+
+                              "status": "pending",
+                              "timestamp": FieldValue.serverTimestamp(),
+                            });
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Shared with ${friend['username']}"),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  // 🎨 PRODUCT CARD (UI)
-  Widget productCard(Map<String, dynamic> data) {
+  // 🎨 PRODUCT CARD (UPDATED)
+  Widget productCard(Map<String, dynamic> data, String productId) {
     return Container(
       width: 190,
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -288,9 +214,7 @@ class _homeState extends State<home> {
                     data['product_name'] ?? "",
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
 
                   Text(
@@ -306,19 +230,40 @@ class _homeState extends State<home> {
                     style: TextStyle(color: Colors.grey[600], fontSize: 12),
                   ),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 32,
-                    child: ElevatedButton(
-                      onPressed: () => showPurchaseDialog(data),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                  Row(
+                    children: [
+
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            PurchaseDialog.show(
+                              context: context,
+                              data: data,
+                              onConfirm: (qty) async {
+                                await TransactionService.processPurchase(
+                                  productData: data,
+                                  quantity: qty,
+                                  source: "home",
+                                );
+                              },
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          child: const Text("Buy"),
                         ),
                       ),
-                      child: const Text("Buy"),
-                    ),
+
+                      const SizedBox(width: 6),
+
+                      Expanded(
+                        child: OutlinedButton(
+                        onPressed: () => shareProduct(data, productId),
+                          child: const Text("Share"),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -329,7 +274,6 @@ class _homeState extends State<home> {
     );
   }
 
-  // 📦 CATEGORY
   Widget categorySection(String title, String collection, IconData icon) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,9 +288,7 @@ class _homeState extends State<home> {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                    fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -368,10 +310,10 @@ class _homeState extends State<home> {
                 scrollDirection: Axis.horizontal,
                 itemCount: snapshot.data!.docs.length,
                 itemBuilder: (context, i) {
-                  final data =
-                  snapshot.data!.docs[i].data()
-                  as Map<String, dynamic>;
-                  return productCard(data);
+                  final doc = snapshot.data!.docs[i];
+                  final data = doc.data() as Map<String, dynamic>;
+
+                  return productCard(data, doc.id);
                 },
               );
             },
@@ -393,9 +335,7 @@ class _homeState extends State<home> {
         title: const Text(
           "Zingo",
           style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
+              color: Colors.black, fontWeight: FontWeight.bold),
         ),
         iconTheme: const IconThemeData(color: Colors.black),
       ),
@@ -406,23 +346,9 @@ class _homeState extends State<home> {
 
             const SizedBox(height: 10),
 
-            categorySection(
-              "Electronics",
-              "products_electronics",
-              Icons.devices,
-            ),
-
-            categorySection(
-              "Fashion",
-              "products_fashion",
-              Icons.checkroom,
-            ),
-
-            categorySection(
-              "Home",
-              "products_home",
-              Icons.home,
-            ),
+            categorySection("Electronics", "products_electronics", Icons.devices),
+            categorySection("Fashion", "products_fashion", Icons.checkroom),
+            categorySection("Home", "products_home", Icons.home),
 
             const SizedBox(height: 20),
           ],

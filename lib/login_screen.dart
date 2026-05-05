@@ -69,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
       String phone = userData['phone_number'] ?? "";
       String country = userData['country'] ?? "";
       String profileUrl = userData['profile_url'] ?? "";
-      int points = (userData['number_of_points'] ?? 0);
+      double points = (userData['number_of_points'] ?? 0).toDouble();
 
       if (!mounted) return;
 
