@@ -6,6 +6,7 @@ import 'package:zing/network.dart';
 import 'package:zing/login_screen.dart';
 import 'package:zing/prize.dart';
 import 'package:zing/messages.dart';
+import 'package:zing/profile.dart';
 
 class HomePage extends StatefulWidget {
   final String username;
@@ -30,24 +31,21 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int currentPageIndex = 0;
 
-  String? phone;
-  String? country;
-  String? profileUrl;
-
-  // ✅ FIX: MUST BE DOUBLE (NOT INT)
+  String username = "";
+  String phone = "";
+  String country = "";
+  String profileUrl = "";
   double points = 0.0;
 
   bool isLoading = true;
 
-  List<Widget> _pages = [];
-
   @override
   void initState() {
     super.initState();
-    _fetchUserData();
+    _listenToUserData();
   }
 
-  void _fetchUserData() async {
+  void _listenToUserData() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     if (uid == null) {
@@ -55,12 +53,11 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection("users")
-          .doc(uid)
-          .get();
-
+    FirebaseFirestore.instance
+        .collection("users")
+        .doc(uid)
+        .snapshots()
+        .listen((doc) {
       if (!doc.exists) {
         _logout();
         return;
@@ -69,34 +66,14 @@ class _HomePageState extends State<HomePage> {
       final data = doc.data() as Map<String, dynamic>;
 
       setState(() {
+        username = data['username'] ?? widget.username;
         phone = data['phone_number'] ?? "";
         country = data['country'] ?? "";
         profileUrl = data['profile_url'] ?? "";
-
-        // ✅ FIX: FORCE DOUBLE
         points = (data['number_of_points'] ?? 0).toDouble();
-
-        _pages = [
-          const home(),
-          Net(
-            username: widget.username,
-            userphonenumber: phone ?? "",
-            country: country ?? "",
-          ),
-          Messages(
-            username: widget.username,
-            userphonenumber: phone ?? "",
-            country: country ?? "",
-          ),
-          prize(),
-        ];
-
         isLoading = false;
       });
-    } catch (e) {
-      debugPrint("Error loading user: $e");
-      setState(() => isLoading = false);
-    }
+    });
   }
 
   void _logout() async {
@@ -109,6 +86,25 @@ class _HomePageState extends State<HomePage> {
           (route) => false,
     );
   }
+
+  List<Widget> get _pages => [
+    const home(),
+    Net(
+      username: username,
+      userphonenumber: phone,
+      country: country,
+    ),
+    Messages(
+      username: username,
+      userphonenumber: phone,
+      country: country,
+    ),
+    PrizePage(
+      username: username,
+      userphonenumber: phone,
+      country: country,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -145,19 +141,34 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundImage:
-                    profileUrl != null && profileUrl!.isNotEmpty
-                        ? NetworkImage(profileUrl!)
-                        : null,
-                    child: profileUrl == null || profileUrl!.isEmpty
-                        ? const Icon(Icons.person, color: Colors.white)
-                        : null,
-                  ),
+                  GestureDetector(
+                  onTap: () {
+    Navigator.push(
+    context,
+    MaterialPageRoute(
+    builder: (context) => profile(
+    username: username,
+    phone: phone,
+    country: country,
+    profileUrl: profileUrl,
+    points: points,
+    ),
+    ),
+    );
+    },
+      child: CircleAvatar(
+        radius: 30,
+        backgroundImage: profileUrl.isNotEmpty
+            ? NetworkImage(profileUrl)
+            : null,
+        child: profileUrl.isEmpty
+            ? const Icon(Icons.person, color: Colors.white)
+            : null,
+      ),
+    ),
                   const SizedBox(height: 10),
                   Text(
-                    "Hey ${widget.username}!",
+                    "Hey $username!",
                     style: const TextStyle(color: Colors.white, fontSize: 18),
                   ),
                   Text(
