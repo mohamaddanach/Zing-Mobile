@@ -10,6 +10,7 @@ class TransactionService {
     required Map<String, dynamic> productData,
     required int quantity,
     required String source,
+    required String paymentMethod,
     String? receiverName,
   }) async {
 
@@ -81,6 +82,7 @@ class TransactionService {
         "quantity": quantity,
         "total_price": totalPrice,
         "source": source,
+        "payement_method": paymentMethod,
         "status": "pending",
         "timestamp": FieldValue.serverTimestamp(),
       }),

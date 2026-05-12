@@ -224,14 +224,16 @@ class _MessagesState extends State<Messages> {
                               PurchaseDialog.show(
                                 context: context,
                                 data: product,
-                                onConfirm: (qty) async {
+                                onConfirm: (qty,paymentMethod) async {
                                   await TransactionService.processPurchase(
                                     productData: product,
                                     quantity: qty,
                                     source: "commission",
+                                    paymentMethod: paymentMethod,
                                       receiverName: msg['sender_name'] ?? "Unknown",// IMPORTANT DIFFERENCE
                                   );
                                 },
+
                               );
                             },
                             child: const Text("Buy"),

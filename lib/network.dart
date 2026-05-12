@@ -114,7 +114,7 @@ class _NetState extends State<Net> {
 
                         if (otherUsers.isEmpty) {
                           return const Center(
-                            child: Text("No new users to add."),
+                            child: Text("There is no new firends in your country"),
                           );
                         }
 

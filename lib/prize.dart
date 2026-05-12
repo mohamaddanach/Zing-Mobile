@@ -20,7 +20,9 @@ class PrizePage extends StatefulWidget {
 
 class _PrizePageState extends State<PrizePage> {
 
-  // 🖼 SAFE IMAGE HANDLER (same logic as Messages.dart)
+  int selectedQty = 1;
+
+  // 🖼 SAFE IMAGE HANDLER
   Widget buildPrizeImage(dynamic images) {
     try {
       String value = "";
@@ -35,7 +37,6 @@ class _PrizePageState extends State<PrizePage> {
         return const Icon(Icons.card_giftcard, size: 50);
       }
 
-      // Base64 image
       if (value.startsWith("data:image")) {
         final base64Str = value.split(',').last;
         final bytes = base64Decode(base64Str);
@@ -43,7 +44,6 @@ class _PrizePageState extends State<PrizePage> {
         return Image.memory(bytes, fit: BoxFit.cover);
       }
 
-      // URL image
       if (value.startsWith("http")) {
         return Image.network(
           value,
@@ -58,6 +58,12 @@ class _PrizePageState extends State<PrizePage> {
     } catch (e) {
       return const Icon(Icons.card_giftcard, size: 50);
     }
+  }
+
+  void showToast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 
   @override
@@ -78,16 +84,8 @@ class _PrizePageState extends State<PrizePage> {
 
         builder: (context, snapshot) {
 
-          if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("No prizes available"));
           }
 
           final prizes = snapshot.data!.docs;
@@ -108,93 +106,171 @@ class _PrizePageState extends State<PrizePage> {
                     horizontal: 10, vertical: 8),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Row(
+                  child: Column(
                     children: [
 
-                      // 🖼 IMAGE
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: SizedBox(
-                          width: 70,
-                          height: 70,
-                          child: buildPrizeImage(images),
-                        ),
+                      Row(
+                        children: [
+
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: 70,
+                              height: 70,
+                              child: buildPrizeImage(images),
+                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                Text(
+                                  "$points points per unit",
+                                  style: const TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          ElevatedButton(
+                            onPressed: () async {
+
+                              int selectedQty = 1;
+
+                              final result = await showDialog<int>(
+                                context: context,
+                                builder: (context) => StatefulBuilder(
+                                  builder: (context, setState) => AlertDialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+
+                                    title: const Text("Select Quantity"),
+
+                                    content: Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: List.generate(10, (index) {
+                                        final num = index + 1;
+                                        final selected = selectedQty == num;
+
+                                        return GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              selectedQty = num;
+                                            });
+                                          },
+                                          child: Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: selected ? Colors.blue : Colors.white,
+                                              border: Border.all(color: Colors.blue),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                "$num",
+                                                style: TextStyle(
+                                                  color: selected ? Colors.white : Colors.blue,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text("Cancel"),
+                                      ),
+
+                                      ElevatedButton(
+                                        onPressed: () => Navigator.pop(context, selectedQty),
+                                        child: const Text("Confirm"),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+
+                              if (result == null) return;
+
+                              final qty = result;
+
+                              final userQuery = await FirebaseFirestore.instance
+                                  .collection("users")
+                                  .where("phone_number", isEqualTo: widget.userphonenumber)
+                                  .limit(1)
+                                  .get();
+
+                              if (userQuery.docs.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("User not found")),
+                                );
+                                return;
+                              }
+
+                              final userDoc = userQuery.docs.first;
+                              final userRef = userDoc.reference;
+
+                              final userpoints = userDoc.data()['number_of_points'] ?? 0;
+
+                              int totalCost = points * qty;
+
+                              if (userpoints < totalCost) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Not enough points")),
+                                );
+                                return;
+                              }
+
+                              await userRef.update({
+                                "number_of_points": userpoints - totalCost
+                              });
+
+                              await FirebaseFirestore.instance.collection("users_prizes").add({
+                                "winner_name": widget.username,
+                                "winner_phone_number": widget.userphonenumber,
+                                "winner_country": widget.country,
+                                "prize_name": name,
+                                "quantity": qty,
+                                "total_points_used": totalCost,
+                                "check_admin": false,
+                                "Date": FieldValue.serverTimestamp(),
+                              });
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Operation is done")),
+                              );
+                            },
+                            child: const Text("Get"),
+                          ),
+                        ],
                       ),
 
-                      const SizedBox(width: 12),
+                      const SizedBox(height: 10),
 
-                      // 📄 INFO
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            Text(
-                              "$points points required",
-                              style: const TextStyle(
-                                color: Colors.orange,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // 🎁 BUTTON
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () async {
-
-                          final userQuery = await FirebaseFirestore.instance
-                              .collection("users")
-                              .where("phone_number" , isEqualTo: widget.userphonenumber)
-                              .limit(1)
-                              .get();
-                          if(userQuery.docs.isEmpty){
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("User not found"))
-                            );
-                            return;
-                          }
-                          final userDoc = userQuery.docs.first;
-                          final userRef = userDoc.reference;
-                          final userpoints = userDoc.data()['number_of_points'] ?? 0;
-                          if(userpoints < points){
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("You dont have the enoguh points to get prize"))
-                            );
-                            return;
-                          }
-                          await userRef.update({
-                            "number_of_points" : userpoints - points
-                          });
-                          await FirebaseFirestore.instance.collection("users_prizes").add({
-                            "winner_name" : widget.username,
-                            "winner_phone_number" : widget.userphonenumber,
-                            "winner_country" : widget.country,
-                            "prize_name" : name,
-                            "prize_number_of_points_required" : points,
-                            "Date" : FieldValue.serverTimestamp(),
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Congratulations"))
-                          );
-                        },
-                        child: const Text("Get"),
-                      )
                     ],
                   ),
                 ),

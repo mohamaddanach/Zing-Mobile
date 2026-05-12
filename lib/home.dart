@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:zing/purchase_dialog.dart';
 import 'select_friend_screen.dart';
 import 'transaction_service.dart';
+import 'more_by_categoty.dart';
 class home extends StatefulWidget {
   const home({super.key});
 
@@ -19,8 +20,15 @@ class _homeState extends State<home> {
       double.parse(value.toStringAsFixed(2));
 
   double calcPoints(Map<String, dynamic> data) {
-    double bonus = (data['bonus_reserve'] ?? 0).toDouble();
-    return clean(bonus);
+    final raw = data['bonus_reserve'];
+
+    if (raw == null) return 0;
+
+    if (raw is int) return raw.toDouble();
+    if (raw is double) return raw;
+    if (raw is String) return double.tryParse(raw) ?? 0;
+
+    return 0;
   }
 
   Widget _imageWidget(Map<String, dynamic> data) {
@@ -50,7 +58,17 @@ class _homeState extends State<home> {
       return Image.network("https://via.placeholder.com/150", fit: BoxFit.cover);
     }
   }
-
+  void openCategoryPage(String title, String collection) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => all_in_one_category(
+          title: title,
+          collection: collection,
+        ),
+      ),
+    );
+  }
   Future<void> shareProduct(
       Map<String, dynamic> product,
       String productId,
@@ -226,7 +244,7 @@ class _homeState extends State<home> {
                   ),
 
                   Text(
-                    "${calcPoints(data)} pts",
+                      "${calcPoints(data).toStringAsFixed(0)} pts",
                     style: TextStyle(color: Colors.grey[600], fontSize: 12),
                   ),
 
@@ -239,11 +257,12 @@ class _homeState extends State<home> {
                             PurchaseDialog.show(
                               context: context,
                               data: data,
-                              onConfirm: (qty) async {
+                              onConfirm: (qty, paymentMethod) async {
                                 await TransactionService.processPurchase(
                                   productData: data,
                                   quantity: qty,
                                   source: "home",
+                                  paymentMethod: paymentMethod,
                                 );
                               },
                             );
@@ -281,15 +300,33 @@ class _homeState extends State<home> {
 
         Padding(
           padding: const EdgeInsets.all(12),
-          child: Row(
+          child:
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: Colors.red),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold),
+
+              Row(
+                children: [
+                  Icon(icon, color: Colors.red),
+                  const SizedBox(width: 6),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
+
+              TextButton(
+                onPressed: () {
+                  openCategoryPage(title, collection);
+                },
+                child: const Text(
+                  "More...",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+
             ],
           ),
         ),
@@ -299,6 +336,7 @@ class _homeState extends State<home> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection(collection)
+            .where('status' , isEqualTo: true)
                 .snapshots(),
             builder: (context, snapshot) {
 
@@ -356,4 +394,5 @@ class _homeState extends State<home> {
       ),
     );
   }
+
 }
