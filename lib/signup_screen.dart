@@ -12,6 +12,21 @@ class SignupScreen extends StatefulWidget {
   @override
   State<SignupScreen> createState() => _SignupScreenState();
 }
+class AppColors {
+  static const Color bg = Color(0xFF050816);
+
+  static const Color card = Color(0xFF111827);
+
+  static const Color red = Color(0xFFE11D48);
+
+  static const Color redLight = Color(0xFFFF4D6D);
+
+  static const Color blue = Color(0xFF2563EB);
+
+  static const Color blueLight = Color(0xFF60A5FA);
+
+  static const Color field = Color(0xFF0B1220);
+}
 
 class _SignupScreenState extends State<SignupScreen> {
   final _username = TextEditingController();
@@ -155,69 +170,302 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(backgroundColor: Colors.red),
+      backgroundColor: AppColors.bg,
+
       body: Stack(
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.red, Colors.white],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+
+          // 🔴 RED GLOW
+          Positioned(
+            top: -100,
+            left: -80,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.red.withOpacity(0.18),
               ),
-            ),
-            child: ListView(
-              children: [
-                GestureDetector(
-                  onTap: pickImage,
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundImage: kIsWeb
-                        ? (_webImage != null
-                        ? MemoryImage(_webImage!)
-                        : null)
-                        : (_image != null
-                        ? FileImage(_image!)
-                        : null) as ImageProvider?,
-                    child: (_image == null && _webImage == null)
-                        ? const Icon(Icons.add_a_photo)
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                buildText(_username, "Username", Icons.person),
-                const SizedBox(height: 10),
-
-                buildText(_phone, "Phone", Icons.phone),
-                const SizedBox(height: 10),
-
-                buildText(_password, "Password", Icons.lock, ob: true),
-                const SizedBox(height: 10),
-
-                DropdownButton<String>(
-                  value: selectedCountry,
-                  isExpanded: true,
-                  items: countries
-                      .map((e) =>
-                      DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (v) => setState(() => selectedCountry = v!),
-                ),
-
-                const SizedBox(height: 20),
-
-                ElevatedButton(
-                  onPressed: signup,
-                  child: const Text("SIGN UP"),
-                )
-              ],
             ),
           ),
 
-          if (loading)
-            const Center(child: CircularProgressIndicator()),
+          // 🔵 BLUE GLOW
+          Positioned(
+            bottom: -120,
+            right: -80,
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.blue.withOpacity(0.15),
+              ),
+            ),
+          ),
+
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+
+                  // BACK BUTTON
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // TITLE
+                  const Text(
+                    "CREATE ACCOUNT",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  const Text(
+                    "Join the ZING ecosystem",
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 15,
+                    ),
+                  ),
+
+                  const SizedBox(height: 35),
+
+                  // PROFILE IMAGE
+                  GestureDetector(
+                    onTap: pickImage,
+                    child: Stack(
+                      children: [
+
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [
+                                AppColors.red,
+                                AppColors.blue,
+                              ],
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 58,
+                            backgroundColor: AppColors.card,
+                            backgroundImage: kIsWeb
+                                ? (_webImage != null
+                                ? MemoryImage(_webImage!)
+                                : null)
+                                : (_image != null
+                                ? FileImage(_image!)
+                                : null) as ImageProvider?,
+                            child: (_image == null &&
+                                _webImage == null)
+                                ? const Icon(
+                              Icons.person,
+                              size: 55,
+                              color: Colors.white54,
+                            )
+                                : null,
+                          ),
+                        ),
+
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.red,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.red.withOpacity(0.5),
+                                  blurRadius: 15,
+                                )
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 35),
+
+                  // FORM CARD
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.06),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 30,
+                        ),
+                      ],
+                    ),
+
+                    child: Column(
+                      children: [
+
+                        buildText(
+                          _username,
+                          "Username",
+                          Icons.person,
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        buildText(
+                          _phone,
+                          "Phone Number",
+                          Icons.phone,
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        buildText(
+                          _password,
+                          "Password",
+                          Icons.lock,
+                          ob: true,
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        // COUNTRY
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.field,
+                            borderRadius:
+                            BorderRadius.circular(18),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.05),
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              dropdownColor: AppColors.card,
+                              value: selectedCountry,
+                              isExpanded: true,
+                              style: const TextStyle(
+                                color: Colors.white,
+                              ),
+                              iconEnabledColor:
+                              AppColors.blueLight,
+                              items: countries
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                  value: e,
+                                  child: Text(e),
+                                ),
+                              )
+                                  .toList(),
+                              onChanged: (v) {
+                                setState(() {
+                                  selectedCountry = v!;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 30),
+
+                        // BUTTON
+                        SizedBox(
+                          width: double.infinity,
+                          height: 58,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius:
+                              BorderRadius.circular(18),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  AppColors.red,
+                                  AppColors.redLight,
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.red.withOpacity(0.4),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ElevatedButton(
+                              onPressed: loading ? null : signup,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                Colors.transparent,
+                                shadowColor:
+                                Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                  BorderRadius.circular(18),
+                                ),
+                              ),
+                              child: loading
+                                  ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                                  : const Text(
+                                "CREATE ACCOUNT",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                  FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  const Text(
+                    "Powered by ZING Ecosystem",
+                    style: TextStyle(
+                      color: Colors.white30,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

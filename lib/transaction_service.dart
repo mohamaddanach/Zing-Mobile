@@ -11,6 +11,7 @@ class TransactionService {
     required int quantity,
     required String source,
     required String paymentMethod,
+    required String productId,
     String? receiverName,
   }) async {
 
@@ -68,6 +69,50 @@ class TransactionService {
     final commissionRef =
     firestore.collection("transaction_commission").doc(newId.toString());
 
+    // 🛒 PRODUCT STOCK UPDATE
+    final String category =
+    (productData['category'] ?? "").toString().trim();
+
+    final userRef = firestore.collection("users").doc(user.uid);
+    if (category.isEmpty) {
+      throw Exception("Category missing in productData");
+    }
+    if (category.isNotEmpty && productId.isNotEmpty) {
+
+      final productRef = firestore
+          .collection("products_$category")
+          .doc(productId);
+
+      await firestore.runTransaction((tx) async {
+
+        final snap = await tx.get(productRef);
+
+        if (!snap.exists) {
+          throw Exception("Product not found");
+        }
+
+        final data = snap.data() as Map<String, dynamic>;
+
+        final int currentQty =
+        (data['current_quantity'] ?? 0) as int;
+        final int orderQty = quantity;
+        print("🟡 ORDER QTY: $orderQty");
+        print("🟢 CURRENT QTY: $currentQty");
+        // ❌ NOT ENOUGH STOCK
+        if (currentQty < quantity) {
+          print("🔴 ERROR: Not enough stock!");
+          throw Exception("Not enough stock available");
+        }
+
+        // ✅ CALCULATE NEW STOCK
+        final int updatedQty = currentQty - quantity;
+
+        // ✅ UPDATE FIRESTORE
+        tx.update(productRef, {
+          "current_quantity": updatedQty,
+        });
+      });
+    }
     // 👇 ALL WRITES TOGETHER
     await Future.wait([
 
@@ -81,6 +126,7 @@ class TransactionService {
         "product_name": productData['product_name'] ?? "",
         "quantity": quantity,
         "total_price": totalPrice,
+        "category": category,
         "source": source,
         "payement_method": paymentMethod,
         "status": "pending",

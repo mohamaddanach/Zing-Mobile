@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class AppColors {
+  static const bg = Color(0xFF050816);
+  static const card = Color(0xFF111827);
+
+  static const blue = Color(0xFF3B82F6);
+  static const blueLight = Color(0xFF60A5FA);
+
+  static const white = Colors.white;
+  static const grey = Color(0xFF94A3B8);
+}
+
 class profile extends StatefulWidget {
   final String username;
   final String phone;
@@ -24,17 +35,32 @@ class profile extends StatefulWidget {
 class _ProfileState extends State<profile> {
   int selectedTab = 0;
 
+  double getDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final phone = widget.phone.toString();
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.bg,
 
       appBar: AppBar(
-        title: const Text("Profile"),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.card,
         centerTitle: true,
+        title: const Text(
+          "PROFILE",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
 
       body: Column(
@@ -42,45 +68,62 @@ class _ProfileState extends State<profile> {
 
           const SizedBox(height: 20),
 
-          // 👤 PROFILE HEADER
-          CircleAvatar(
-            radius: 55,
-            backgroundImage: widget.profileUrl.isNotEmpty
-                ? NetworkImage(widget.profileUrl)
-                : null,
-            backgroundColor: Colors.grey[800],
-            child: widget.profileUrl.isEmpty
-                ? const Icon(Icons.person,
-                size: 55, color: Colors.white)
-                : null,
+          // 👤 HEADER CARD
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              children: [
+
+                CircleAvatar(
+                  radius: 50,
+                  backgroundImage: widget.profileUrl.isNotEmpty
+                      ? NetworkImage(widget.profileUrl)
+                      : null,
+                  backgroundColor: Colors.grey[800],
+                  child: widget.profileUrl.isEmpty
+                      ? const Icon(Icons.person,
+                      size: 50, color: Colors.white)
+                      : null,
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  widget.username,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                Text(
+                  widget.phone,
+                  style: const TextStyle(color: AppColors.grey),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  "⭐ ${getDouble(widget.points).toStringAsFixed(2)} Points",
+                  style: const TextStyle(
+                    color: AppColors.blueLight,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 15),
 
-          Text(
-            widget.username,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold),
-          ),
-
-          Text(
-            widget.phone,
-            style: const TextStyle(color: Colors.grey),
-          ),
-
-          const SizedBox(height: 10),
-
-          Text(
-            "⭐ ${widget.points.toStringAsFixed(2)} points",
-            style: const TextStyle(
-                color: Colors.amber, fontSize: 16),
-          ),
-
-          const SizedBox(height: 20),
-
-          // 🔥 TABS BUTTONS
+          // 🔵 TABS (BLUE STYLE BUTTONS)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -92,7 +135,6 @@ class _ProfileState extends State<profile> {
 
           const SizedBox(height: 10),
 
-          // 🔥 CONTENT
           Expanded(
             child: IndexedStack(
               index: selectedTab,
@@ -108,27 +150,26 @@ class _ProfileState extends State<profile> {
     );
   }
 
-  // ================= TABS =================
-
+  // ================= TAB BUTTON =================
   Widget tabButton(String title, int index) {
+    final isSelected = selectedTab == index;
+
     return GestureDetector(
-      onTap: () {
-        setState(() => selectedTab = index);
-      },
-      child: Container(
-        padding:
-        const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+      onTap: () => setState(() => selectedTab = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: selectedTab == index
-              ? Colors.amber
-              : Colors.grey[900],
+          color: isSelected ? AppColors.blue : AppColors.card,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.blue.withOpacity(0.4),
+          ),
         ),
         child: Text(
           title,
           style: TextStyle(
-            color:
-            selectedTab == index ? Colors.black : Colors.white,
+            color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -137,7 +178,6 @@ class _ProfileState extends State<profile> {
   }
 
   // ================= FRIENDS =================
-
   Widget friendsSection(String phone) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -155,7 +195,7 @@ class _ProfileState extends State<profile> {
         if (docs.isEmpty) {
           return const Center(
             child: Text("No friends yet",
-                style: TextStyle(color: Colors.grey)),
+                style: TextStyle(color: AppColors.grey)),
           );
         }
 
@@ -163,25 +203,30 @@ class _ProfileState extends State<profile> {
           children: docs.map((doc) {
             final d = doc.data() as Map<String, dynamic>;
 
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundImage:
-                (d['profile_url'] ?? "").isNotEmpty
-                    ? NetworkImage(d['profile_url'])
-                    : null,
-                backgroundColor: Colors.grey[800],
-                child: (d['profile_url'] ?? "").isEmpty
-                    ? const Icon(Icons.person,
-                    color: Colors.white)
-                    : null,
+            return Card(
+              color: AppColors.card,
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
-              title: Text(
-                d['username'] ?? "",
-                style: const TextStyle(color: Colors.white),
-              ),
-              subtitle: Text(
-                d['phone_number'] ?? "",
-                style: const TextStyle(color: Colors.grey),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.blue,
+                  backgroundImage: (d['profile_url'] ?? "").isNotEmpty
+                      ? NetworkImage(d['profile_url'])
+                      : null,
+                  child: (d['profile_url'] ?? "").isEmpty
+                      ? const Icon(Icons.person, color: Colors.white)
+                      : null,
+                ),
+                title: Text(
+                  d['username'] ?? "",
+                  style: const TextStyle(color: Colors.white),
+                ),
+                subtitle: Text(
+                  d['phone_number'] ?? "",
+                  style: const TextStyle(color: AppColors.grey),
+                ),
               ),
             );
           }).toList(),
@@ -191,7 +236,6 @@ class _ProfileState extends State<profile> {
   }
 
   // ================= TRANSACTIONS =================
-
   Widget transactionsSection(String phone) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -208,7 +252,7 @@ class _ProfileState extends State<profile> {
         if (docs.isEmpty) {
           return const Center(
             child: Text("No transactions",
-                style: TextStyle(color: Colors.grey)),
+                style: TextStyle(color: AppColors.grey)),
           );
         }
 
@@ -217,20 +261,23 @@ class _ProfileState extends State<profile> {
             final t = doc.data() as Map<String, dynamic>;
 
             return Card(
-              color: const Color(0xFF111827),
-              margin: const EdgeInsets.all(8),
+              color: AppColors.card,
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: ListTile(
                 title: Text(
                   t['product_name'] ?? "",
                   style: const TextStyle(color: Colors.white),
                 ),
                 subtitle: Text(
-                  "Seller: ${t['seller_name']}\nQty: ${t['quantity']}",
-                  style: const TextStyle(color: Colors.grey),
+                  "Seller: ${t['seller_name']}",
+                  style: const TextStyle(color: AppColors.grey),
                 ),
                 trailing: Text(
-                  "+${t['total_price']}",
-                  style: const TextStyle(color: Colors.amber),
+                  "+${getDouble(t['total_price']).toStringAsFixed(2)}",
+                  style: const TextStyle(color: AppColors.blueLight),
                 ),
               ),
             );
@@ -241,7 +288,6 @@ class _ProfileState extends State<profile> {
   }
 
   // ================= PRIZES =================
-
   Widget prizesSection(String phone) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -258,7 +304,7 @@ class _ProfileState extends State<profile> {
         if (docs.isEmpty) {
           return const Center(
             child: Text("No prizes yet",
-                style: TextStyle(color: Colors.grey)),
+                style: TextStyle(color: AppColors.grey)),
           );
         }
 
@@ -267,22 +313,25 @@ class _ProfileState extends State<profile> {
             final p = doc.data() as Map<String, dynamic>;
 
             return Card(
-              color: const Color(0xFF1F2937),
-              margin: const EdgeInsets.all(8),
+              color: AppColors.card,
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: ListTile(
                 leading: const Icon(Icons.emoji_events,
-                    color: Colors.amber),
+                    color: AppColors.blue),
                 title: Text(
                   p['prize_name'] ?? "",
                   style: const TextStyle(color: Colors.white),
                 ),
                 subtitle: Text(
-                  "Country: ${p['winner_country']}",
-                  style: const TextStyle(color: Colors.grey),
+                  p['winner_country'] ?? "",
+                  style: const TextStyle(color: AppColors.grey),
                 ),
                 trailing: Text(
-                  "${p['prize_number_of_points_required']} pts",
-                  style: const TextStyle(color: Colors.amber),
+                  "${getDouble(p['total_points_used']).toStringAsFixed(0)} pts",
+                  style: const TextStyle(color: AppColors.blueLight),
                 ),
               ),
             );

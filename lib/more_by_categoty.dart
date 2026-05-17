@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'purchase_dialog.dart';
 import 'transaction_service.dart';
-
+import 'show_products.dart';
 class all_in_one_category extends StatelessWidget {
   final String title;
   final String collection;
@@ -96,7 +96,21 @@ class all_in_one_category extends StatelessWidget {
             itemBuilder: (context, i) {
               final data = docs[i].data() as Map<String, dynamic>;
 
-              return Container(
+              return GestureDetector(
+                  onTap: () {
+                    ShowProducts.showProductDetails(
+                      context: context,
+                      data: data,
+                      productId: docs[i].id,
+                      collection: collection,
+
+                      // reuse helpers
+                      imageWidget: _imageWidget,
+                      calcPoints: (d) => d['bonus_reserve'] ?? 0,
+                      shareProduct: (_, __, ___) {}, // optional (you can connect later)
+                    );
+                  },
+                  child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 padding: const EdgeInsets.all(10),
 
@@ -185,10 +199,14 @@ class all_in_one_category extends StatelessWidget {
                           data: data,
                           onConfirm: (qty, paymentMethod) async {
                             await TransactionService.processPurchase(
-                              productData: data,
+                              productData: {
+                                ...data,
+                                "category": collection.replaceFirst("products_", ""),
+                              },
                               quantity: qty,
                               source: "category_page",
                               paymentMethod: paymentMethod,
+                              productId: docs[i].id,
                             );
                           },
                         );
@@ -196,7 +214,7 @@ class all_in_one_category extends StatelessWidget {
                     ),
                   ],
                 ),
-              );
+                  ));
             },
           );
         },

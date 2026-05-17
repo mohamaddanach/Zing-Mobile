@@ -4,11 +4,18 @@ class PurchaseDialog {
   static Future<void> show({
     required BuildContext context,
     required Map<String, dynamic> data,
-    required Future<void> Function(int qty,String payementmethod) onConfirm,
+    required Future<void> Function(
+        int qty,
+        String payementmethod,
+        ) onConfirm,
   }) async {
 
     int qty = 1;
     String selectedPayment = "Cash on Delivery";
+
+    // ✅ GET CURRENT STOCK
+    final int currentStock =
+    (data['current_quantity'] ?? 0) as int;
 
     await showDialog(
       context: context,
@@ -23,6 +30,31 @@ class PurchaseDialog {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+
+              /// STOCK INFO
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.red.shade200,
+                  ),
+                ),
+
+                child: Text(
+                  "Available Stock: $currentStock",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
 
               /// PAYMENT METHOD
               const Align(
@@ -40,8 +72,12 @@ class PurchaseDialog {
 
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
+
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
+                  border: Border.all(
+                    color: Colors.grey.shade400,
+                  ),
+
                   borderRadius: BorderRadius.circular(12),
                 ),
 
@@ -84,7 +120,7 @@ class PurchaseDialog {
 
               const SizedBox(height: 20),
 
-              /// QTY CIRCLES
+              /// QTY
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -102,49 +138,55 @@ class PurchaseDialog {
                 spacing: 10,
                 runSpacing: 10,
 
-                children: List.generate(10, (index) {
+                // ✅ LIMIT TO AVAILABLE STOCK
+                children: List.generate(
+                  currentStock > 10 ? 10 : currentStock,
+                      (index) {
 
-                  final number = index + 1;
-                  final selected = qty == number;
+                    final number = index + 1;
+                    final selected = qty == number;
 
-                  return GestureDetector(
+                    return GestureDetector(
 
-                    onTap: () {
-                      setState(() {
-                        qty = number;
-                      });
-                    },
+                      onTap: () {
+                        setState(() {
+                          qty = number;
+                        });
+                      },
 
-                    child: Container(
-                      width: 45,
-                      height: 45,
+                      child: Container(
+                        width: 45,
+                        height: 45,
 
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: selected ? Colors.red : Colors.white,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: selected
+                              ? Colors.red
+                              : Colors.white,
 
-                        border: Border.all(
-                          color: Colors.red,
-                          width: 2,
+                          border: Border.all(
+                            color: Colors.red,
+                            width: 2,
+                          ),
                         ),
-                      ),
 
-                      child: Center(
-                        child: Text(
-                          number.toString(),
+                        child: Center(
+                          child: Text(
+                            number.toString(),
 
-                          style: TextStyle(
-                            color: selected
-                                ? Colors.white
-                                : Colors.red,
+                            style: TextStyle(
+                              color: selected
+                                  ? Colors.white
+                                  : Colors.red,
 
-                            fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  },
+                ),
               ),
 
               const SizedBox(height: 20),
@@ -169,11 +211,16 @@ class PurchaseDialog {
 
               child: const Text("Confirm"),
 
-              onPressed: () async {
+              onPressed: currentStock <= 0
+                  ? null
+                  : () async {
 
                 Navigator.pop(context);
 
-                await onConfirm(qty,selectedPayment);
+                await onConfirm(
+                  qty,
+                  selectedPayment,
+                );
               },
             ),
           ],
