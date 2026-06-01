@@ -5,7 +5,32 @@ class TransactionService {
 
   static double clean(double value) =>
       double.parse(value.toStringAsFixed(2));
+  static Future<void> _sendCommissionEarnedNotification({
+    required String senderUid,
+    required String receiverName,
+    required double commission,
+    required String productName,
+  }) async {
 
+    await FirebaseFirestore.instance.collection("notifications").add({
+      "title": "Commission earned 💰",
+      "body":
+      "$receiverName bought $productName. You earned \$${commission.toStringAsFixed(2)}",
+
+      "type": "commission",
+      "is_read": false,
+
+      "receiver_id": senderUid,
+
+      "sender_name": receiverName,
+      "sender_uid": FirebaseAuth.instance.currentUser?.uid ?? "",
+
+      "target_id": "",
+      "collection": "",
+
+      "timestamp": FieldValue.serverTimestamp(),
+    });
+  }
   static Future<void> processPurchase({
     required Map<String, dynamic> productData,
     required int quantity,
@@ -148,7 +173,6 @@ class TransactionService {
     // 💸 COMMISSION ONLY IF SOURCE = commission
     if (source == "commission") {
 
-      // 👤 UPDATE USER POINTS (BONUS RESERVE ADDITION)
       final usersRef = firestore.collection("users");
 
       final query = await usersRef
@@ -157,21 +181,35 @@ class TransactionService {
           .get();
 
       if (query.docs.isNotEmpty) {
-        final userRef = query.docs.first.reference;
 
+        final brokerDoc = query.docs.first;
+        final brokerRef = brokerDoc.reference;
+
+        final brokerUid = brokerDoc.id;
+
+        // 💰 UPDATE BROKER POINTS
         await firestore.runTransaction((tx) async {
-          final snap = await tx.get(userRef);
+          final snap = await tx.get(brokerRef);
 
           final currentPoints =
           ((snap.data()?["number_of_points"] ?? 0) as num).toDouble();
 
-          final updatedPoints = currentPoints + commission; // ✅ FIX
+          final updatedPoints = currentPoints + commission;
 
-          tx.update(userRef, {
+          tx.update(brokerRef, {
             "number_of_points": clean(updatedPoints),
           });
         });
+
+        // 🔥 NOTIFY BROKER (SEND BONUS INFO)
+        await _sendCommissionEarnedNotification(
+          senderUid: brokerUid,
+          receiverName: username,
+          commission: commission,
+          productName: productData['product_name'] ?? "product",
+        );
       }
+
       await commissionRef.set({
         "transaction_id": newId,
         "sender_name": receiverName ?? "Unknown",

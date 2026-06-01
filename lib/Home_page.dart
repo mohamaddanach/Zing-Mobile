@@ -9,6 +9,8 @@ import 'package:zing/messages.dart';
 import 'package:zing/profile.dart';
 import 'liked_products_screen.dart';
 import 'saved_products_screen.dart';
+import 'notifications.dart';
+import 'ai_helper.dart';
 class AppColors {
   static const bg = Color(0xFF050816);
   static const card = Color(0xFF111827);
@@ -138,6 +140,7 @@ class _HomePageState extends State<HomePage> {
       userphonenumber: phone,
       country: country,
     ),
+    ai_helper()
   ];
 
   @override
@@ -169,42 +172,24 @@ class _HomePageState extends State<HomePage> {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8.0),
-                child: Icon(
+          GestureDetector(
+            onTap: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => const NotificationsPanel(),
+              );
+            },
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(
                   Icons.notifications_none_rounded,
                   color: Colors.white,
-                  size: 24,
                 ),
-              ),
-              Positioned(
-                top: 12,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 14,
-                    minHeight: 14,
-                  ),
-                  child: const Text(
-                    '3',
-                    style: TextStyle(
-                      color: Colors.red, // أو استخدم AppColors.red إذا كان معرّفاً هنا
-                      fontSize: 8,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -407,6 +392,11 @@ class _HomePageState extends State<HomePage> {
               icon: Icon(Icons.emoji_events_outlined, color: Colors.white70),
               selectedIcon: Icon(Icons.emoji_events, color: Colors.white),
               label: "Prizes",
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.smart_toy_outlined, color: Colors.white70),
+              selectedIcon: Icon(Icons.smart_toy, color: Colors.white),
+              label: "AI Assistant",
             ),
           ],
         ),

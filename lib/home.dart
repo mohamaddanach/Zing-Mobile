@@ -485,260 +485,399 @@ class _homeState extends State<home> {
   }
 
   // 🎨 PRODUCT CARD (UPDATED)
-  Widget productCard(Map<String, dynamic> data, String productId, String collection) {
+  Widget productCard(
+      Map<String, dynamic> data,
+      String productId,
+      String collection,
+      ) {
     final user = FirebaseAuth.instance.currentUser;
 
     return GestureDetector(
-        onTap: () {
-          ShowProducts.showProductDetails(
-            context: context,
-            data: data,
-            productId: productId,
-            collection: collection,
-            imageWidget: _imageWidget,
-            calcPoints: calcPoints,
-            shareProduct: shareProduct,
-          );
-        },
-        child: Container(
-      width: 200,
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-
-          // ── IMAGE + LIKE & SAVE OVERLAY ──────────────────
-          Expanded(
-            flex: 5,
-            child: Stack(
-              children: [
-
-                // IMAGE
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: double.infinity,
-                    child: _imageWidget(data),
-                  ),
-                ),
-
-                // TOP-RIGHT: SAVE BUTTON
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: user == null
-                      ? const SizedBox.shrink()
-                      : StreamBuilder<DocumentSnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user.uid)
-                        .collection('saved_products')
-                        .doc(productId)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      final isSaved =
-                          snapshot.hasData && snapshot.data!.exists;
-                      return GestureDetector(
-                        onTap: () => toggleSave(productId, collection),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: isSaved
-                                ? const Color(0xFF1976D2)
-                                : Colors.white.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(9),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            isSaved
-                                ? Icons.bookmark_rounded
-                                : Icons.bookmark_outline_rounded,
-                            color: isSaved
-                                ? Colors.white
-                                : const Color(0xFF1976D2),
-                            size: 17,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                // TOP-LEFT: LIKE BUTTON
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: user == null
-                      ? const SizedBox.shrink()
-                      : StreamBuilder<DocumentSnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user.uid)
-                        .collection('liked_products')
-                        .doc(productId)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      final isLiked =
-                          snapshot.hasData && snapshot.data!.exists;
-                      return GestureDetector(
-                        onTap: () => toggleLike(productId, collection),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: isLiked
-                                ? const Color(0xFFD32F2F)
-                                : Colors.white.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(9),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            isLiked
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_outline_rounded,
-                            color: isLiked
-                                ? Colors.white
-                                : const Color(0xFFD32F2F),
-                            size: 17,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-              ],
+      onTap: () {
+        ShowProducts.showProductDetails(
+          context: context,
+          data: data,
+          productId: productId,
+          collection: collection,
+          imageWidget: _imageWidget,
+          calcPoints: calcPoints,
+          shareProduct: shareProduct,
+        );
+      },
+      child: Container(
+        width: 200,
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
             ),
-          ),
+          ],
+        ),
+        child: Column(
+          children: [
 
-          // ── INFO ─────────────────────────────────────────
-          Expanded(
-            flex: 5,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // ── IMAGE + LIKE & SAVE OVERLAY ──────────────────
+            Expanded(
+              flex: 5,
+              child: Stack(
                 children: [
 
-                  Text(
-                    data['product_name'] ?? "",
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                  // IMAGE
+                  ClipRRect(
+                    borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(18)),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: double.infinity,
+                      child: _imageWidget(data),
                     ),
                   ),
 
-                  Text(
-                    "\$${data['priceonplatform']}",
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  // TOP-RIGHT: SAVE BUTTON
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: user == null
+                        ? const SizedBox.shrink()
+                        : StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(user.uid)
+                          .collection('saved_products')
+                          .doc(productId)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        final isSaved =
+                            snapshot.hasData && snapshot.data!.exists;
 
-                  Text(
-                    "${calcPoints(data).toStringAsFixed(2)} pts",
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Row(
-                    children: [
-
-                      // BUY
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            PurchaseDialog.show(
-                              context: context,
-                              data: data,
-                              onConfirm: (qty, paymentMethod) async {
-                                await TransactionService.processPurchase(
-                                  productData: {
-                                    ...data,
-                                    "category": collection.replaceFirst("products_", "")
-                                  },
-                                  quantity: qty,
-                                  source: "home",
-                                  paymentMethod: paymentMethod,
-                                  productId: productId,
-                                );
-                              },
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFD32F2F),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        return GestureDetector(
+                          onTap: () => toggleSave(productId, collection),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isSaved
+                                  ? const Color(0xFF1976D2)
+                                  : Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.12),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              isSaved
+                                  ? Icons.bookmark_rounded
+                                  : Icons.bookmark_outline_rounded,
+                              color: isSaved
+                                  ? Colors.white
+                                  : const Color(0xFF1976D2),
+                              size: 17,
                             ),
                           ),
-                          child: const Text(
-                            "Buy",
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
+                        );
+                      },
+                    ),
+                  ),
 
-                      const SizedBox(width: 6),
+                  // TOP-LEFT: LIKE BUTTON
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: user == null
+                        ? const SizedBox.shrink()
+                        : StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(user.uid)
+                          .collection('liked_products')
+                          .doc(productId)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        final isLiked =
+                            snapshot.hasData && snapshot.data!.exists;
 
-                      // SHARE
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => shareProduct(data, productId, collection),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1976D2),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        return GestureDetector(
+                          onTap: () => toggleLike(productId, collection),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isLiked
+                                  ? const Color(0xFFD32F2F)
+                                  : Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.12),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              isLiked
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_outline_rounded,
+                              color: isLiked
+                                  ? Colors.white
+                                  : const Color(0xFFD32F2F),
+                              size: 17,
                             ),
                           ),
-                          child: const Text(
-                            "Share",
-                            style: TextStyle(color: Colors.white),
-                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  // 🔥 REPOST BUTTON
+                  // 🔥 REPOST BUTTON
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () async {
+
+                        try {
+
+                          final currentUser =
+                              FirebaseAuth.instance.currentUser;
+
+                          if (currentUser == null) return;
+
+                          // 🔥 GET CURRENT USER INFO
+                          final userDoc = await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(currentUser.uid)
+                              .get();
+
+                          final userData = userDoc.data() ?? {};
+
+                          // 🔥 PREPARE REPOST DATA
+                          final repostData = {
+
+                            // ALL PRODUCT DATA
+                            ...data,
+
+                            // 🔥 IMPORTANT PRODUCT INFO
+                            "productId": productId,
+                            "collection": collection,
+
+                            // 🔥 IMAGE FIX
+                            "image_url": data['image_url'] ??
+                                data['image'] ??
+                                data['photo'] ??
+                                data['product_image'] ??
+                                data['productImage'] ??
+                                data['photoUrl'] ??
+                                (data['images'] != null &&
+                                    data['images'] is List &&
+                                    data['images'].isNotEmpty
+                                    ? data['images'][0]
+                                    : "") ??
+                                "",
+
+                            // 🔥 PRODUCT NAME FIX
+                            "product_name":
+                            data['product_name'] ??
+                                data['name'] ??
+                                "Unknown Product",
+
+                            // 🔥 PRICE FIX
+                            "priceonplatform":
+                            data['priceonplatform'] ??
+                                data['price'] ??
+                                0,
+
+                            // 🔥 DESCRIPTION FIX
+                            "description":
+                            data['description'] ??
+                                "",
+
+                            // 🔥 USER INFO
+                            "repostedByUid": currentUser.uid,
+
+                            "repostedByName":
+                            userData['username'] ??
+                                "Unknown User",
+
+                            "repostedByImage":
+                            userData['profile_url'] ??
+                                "",
+
+                            "repostedByPhone":
+                            userData['phone_number'] ??
+                                "",
+
+                            // 🔥 DATE
+                            "repostedAt":
+                            FieldValue.serverTimestamp(),
+                          };
+
+                          // 🔥 SAVE REPOST
+                          await FirebaseFirestore.instance
+                              .collection("reposts")
+                              .add(repostData);
+
+                          // 🔥 SUCCESS
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "Product reposted successfully",
+                              ),
+                            ),
+                          );
+
+                        } catch (e) {
+
+                          print(e);
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                "Error reposting product: $e",
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.75),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.repeat_rounded,
+                          color: Colors.white,
+                          size: 18,
                         ),
                       ),
-
-                    ],
+                    ),
                   ),
+
                 ],
               ),
             ),
-          ),
 
-        ],
+            // ── INFO ─────────────────────────────────────────
+            Expanded(
+              flex: 5,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+
+                    Text(
+                      data['product_name'] ?? "",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+
+                    Text(
+                      "\$${data['priceonplatform']}",
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    Text(
+                      "${calcPoints(data).toStringAsFixed(2)} pts",
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Row(
+                      children: [
+
+                        // BUY
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              PurchaseDialog.show(
+                                context: context,
+                                data: data,
+                                onConfirm: (qty, paymentMethod) async {
+                                  await TransactionService.processPurchase(
+                                    productData: {
+                                      ...data,
+                                      "category": collection.replaceFirst(
+                                        "products_",
+                                        "",
+                                      )
+                                    },
+                                    quantity: qty,
+                                    source: "home",
+                                    paymentMethod: paymentMethod,
+                                    productId: productId,
+                                  );
+                                },
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFD32F2F),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              "Buy",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 6),
+
+                        // SHARE
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () =>
+                                shareProduct(data, productId, collection),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1976D2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              "Share",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          ],
+        ),
       ),
-        ));
+    );
   }
 
   Widget categorySection(String title, String collection, IconData icon) {

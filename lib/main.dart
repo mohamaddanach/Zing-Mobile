@@ -23,7 +23,7 @@ class ZingApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       // This will be the first screen your users see
-      home: const LoginScreen(),
+      home: const SplashScreen(),
     );
   }
 }
