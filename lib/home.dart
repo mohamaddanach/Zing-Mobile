@@ -21,6 +21,7 @@ class home extends StatefulWidget {
 class _homeState extends State<home> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -33,15 +34,9 @@ class _homeState extends State<home> {
     if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
   }
+
   Future<void> toggleLike(String productId, String collection) async {
-    String _searchQuery = "";
     final user = FirebaseAuth.instance.currentUser;
-    @override
-    void dispose() {
-      // 🟢 Clean memory usage when the page is closed
-      _searchController.dispose();
-      super.dispose();
-    }
     if (user == null) return;
 
     final ref = FirebaseFirestore.instance
@@ -84,18 +79,14 @@ class _homeState extends State<home> {
     }
   }
 
-  double clean(double value) =>
-      double.parse(value.toStringAsFixed(2));
+  double clean(double value) => double.parse(value.toStringAsFixed(2));
 
   double calcPoints(Map<String, dynamic> data) {
     final raw = data['bonus_reserve'];
-
     if (raw == null) return 0;
-
     if (raw is int) return raw.toDouble();
     if (raw is double) return raw;
     if (raw is String) return double.tryParse(raw) ?? 0;
-
     return 0;
   }
 
@@ -109,7 +100,8 @@ class _homeState extends State<home> {
       } else if (images is String) {
         value = images;
       } else {
-        return Image.network("https://via.placeholder.com/150", fit: BoxFit.cover);
+        return Image.network("https://via.placeholder.com/150",
+            fit: BoxFit.cover);
       }
 
       if (value.startsWith("http")) {
@@ -121,11 +113,12 @@ class _homeState extends State<home> {
       }
 
       return Image.memory(base64Decode(value), fit: BoxFit.cover);
-
     } catch (_) {
-      return Image.network("https://via.placeholder.com/150", fit: BoxFit.cover);
+      return Image.network("https://via.placeholder.com/150",
+          fit: BoxFit.cover);
     }
   }
+
   void openCategoryPage(String title, String collection) {
     Navigator.push(
       context,
@@ -137,6 +130,7 @@ class _homeState extends State<home> {
       ),
     );
   }
+
   Future<void> shareProduct(
       Map<String, dynamic> product,
       String productId,
@@ -153,7 +147,6 @@ class _homeState extends State<home> {
     String phone = userDoc.data()?['phone_number'] ?? "";
     if (phone.isEmpty) phone = user.phoneNumber ?? "";
 
-    // MESSAGE CONTROLLER
     final messageController = TextEditingController();
 
     showModalBottomSheet(
@@ -161,109 +154,115 @@ class _homeState extends State<home> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-
         return Container(
           height: MediaQuery.of(context).size.height * 0.75,
           decoration: const BoxDecoration(
-            color: Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
-
               // ── DRAG HANDLE ─────────────────────
               Container(
                 width: 40,
                 height: 4,
-                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                margin: const EdgeInsets.only(top: 10, bottom: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: const Color(0xFFDBDBDB),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
 
               // ── HEADER ──────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
                     Container(
-                      width: 36,
-                      height: 36,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD32F2F).withOpacity(0.15),
+                        color: const Color(0xFF0095F6).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
                         Icons.share_rounded,
-                        color: Color(0xFFD32F2F),
+                        color: Color(0xFF0095F6),
                         size: 18,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Share Product",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Share Product",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
                           ),
-                        ),
-                        Text(
-                          "Select a friend and add a message",
-                          style: TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 12,
+                          SizedBox(height: 2),
+                          Text(
+                            "Select a friend and add a message",
+                            style: TextStyle(
+                              color: Color(0xFF8E8E8E),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
 
               // ── MESSAGE INPUT ────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     const Text(
                       "MESSAGE (OPTIONAL)",
                       style: TextStyle(
-                        color: Color(0xFF6B7280),
+                        color: Color(0xFF8E8E8E),
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
                       ),
                     ),
-
                     const SizedBox(height: 8),
-
                     Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFF111111),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF2A2A2A)),
+                        color: const Color(0xFFFAFAFA),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFEFEFEF)),
                       ),
                       child: TextField(
                         controller: messageController,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 14,
+                        ),
                         maxLines: 2,
                         decoration: const InputDecoration(
                           hintText: "Write something to your friend...",
-                          hintStyle: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+                          hintStyle: TextStyle(
+                            color: Color(0xFF8E8E8E),
+                            fontSize: 13,
+                          ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.all(14),
+                          contentPadding: EdgeInsets.all(12),
                           prefixIcon: Icon(
                             Icons.chat_bubble_outline_rounded,
-                            color: Color(0xFF1976D2),
+                            color: Color(0xFF0095F6),
                             size: 18,
                           ),
                         ),
@@ -277,28 +276,32 @@ class _homeState extends State<home> {
 
               // ── DIVIDER ──────────────────────────
               const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Expanded(child: Divider(color: Color(0xFF2A2A2A))),
+                    Expanded(
+                      child: Divider(color: Color(0xFFEFEFEF), height: 1),
+                    ),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
                         "SELECT FRIEND",
                         style: TextStyle(
-                          color: Color(0xFF6B7280),
+                          color: Color(0xFF8E8E8E),
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.5,
                         ),
                       ),
                     ),
-                    Expanded(child: Divider(color: Color(0xFF2A2A2A))),
+                    Expanded(
+                      child: Divider(color: Color(0xFFEFEFEF), height: 1),
+                    ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
 
               // ── FRIENDS LIST ─────────────────────
               Expanded(
@@ -309,11 +312,10 @@ class _homeState extends State<home> {
                       .collection('friends_list')
                       .snapshots(),
                   builder: (context, snapshot) {
-
                     if (!snapshot.hasData) {
                       return const Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFFD32F2F),
+                          color: Color(0xFF0095F6),
                           strokeWidth: 2,
                         ),
                       );
@@ -322,16 +324,39 @@ class _homeState extends State<home> {
                     final friends = snapshot.data!.docs;
 
                     if (friends.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.people_outline,
-                                color: Color(0xFF6B7280), size: 40),
-                            SizedBox(height: 10),
-                            Text(
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFAFAFA),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.people_outline_rounded,
+                                color: Color(0xFF8E8E8E),
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
                               "No friends yet",
-                              style: TextStyle(color: Color(0xFF6B7280)),
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              "Add friends to share products with them",
+                              style: TextStyle(
+                                color: Color(0xFF8E8E8E),
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
@@ -339,7 +364,7 @@ class _homeState extends State<home> {
                     }
 
                     return ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       itemCount: friends.length,
                       itemBuilder: (context, index) {
                         final friend =
@@ -348,80 +373,103 @@ class _homeState extends State<home> {
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF111111),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF2A2A2A)),
+                            border: Border.all(
+                              color: const Color(0xFFEFEFEF),
+                              width: 1,
+                            ),
                           ),
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
+                              horizontal: 12,
                               vertical: 4,
                             ),
-
-                            // AVATAR
                             leading: Container(
-                              width: 40,
-                              height: 40,
+                              width: 42,
+                              height: 42,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1976D2).withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(10),
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFFFEDA75),
+                                    Color(0xFFFA7E1E),
+                                    Color(0xFFD62976),
+                                    Color(0xFF833AB4),
+                                  ],
+                                ),
+                                shape: BoxShape.circle,
                               ),
-                              child: const Icon(
-                                Icons.person_rounded,
-                                color: Color(0xFF1976D2),
-                                size: 20,
+                              padding: const EdgeInsets.all(2),
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(2),
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFFAFAFA),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.person_rounded,
+                                    color: Colors.black,
+                                    size: 18,
+                                  ),
+                                ),
                               ),
                             ),
-
                             title: Text(
                               friend['username'] ?? "",
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: Colors.black,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
                               ),
                             ),
-
                             subtitle: Text(
                               friend['phone_number'] ?? "",
                               style: const TextStyle(
-                                color: Color(0xFF6B7280),
+                                color: Color(0xFF8E8E8E),
                                 fontSize: 12,
                               ),
                             ),
-
-                            // SEND BUTTON
                             trailing: GestureDetector(
                               onTap: () async {
                                 Navigator.pop(context);
-
-                                final message = messageController.text.trim();
+                                final message =
+                                messageController.text.trim();
 
                                 await FirebaseFirestore.instance
                                     .collection("shared_products")
                                     .add({
-                                  "product_id":   productId,
-                                  "category":     collection.split("_").last,
-                                  "product_name": product['product_name'] ?? "",
-                                  "product_image": (product['images'] is List &&
+                                  "product_id": productId,
+                                  "category": collection.split("_").last,
+                                  "product_name":
+                                  product['product_name'] ?? "",
+                                  "product_image": (product['images']
+                                  is List &&
                                       product['images'].isNotEmpty)
                                       ? product['images'][0]
                                       : product['images'] ?? "",
-                                  "price":       product['priceonplatform'] ?? 0,
-                                  "seller_name": product['seller_name'] ?? "",
-
-                                  "sender_uid":   user.uid,
+                                  "price": product['priceonplatform'] ?? 0,
+                                  "seller_name":
+                                  product['seller_name'] ?? "",
+                                  "sender_uid": user.uid,
                                   "sender_phone": phone,
-                                  "sender_name":  userDoc.data()?['username'] ?? "",
-
-                                  "receiver_phone": friend['phone_number'] ?? "",
-                                  "receiver_name":  friend['username'] ?? "",
-
-                                  // ── NEW ──
-                                  "message": message.isEmpty ? null : message,
-
-                                  "status":    "pending",
-                                  "timestamp": FieldValue.serverTimestamp(),
+                                  "sender_name":
+                                  userDoc.data()?['username'] ?? "",
+                                  "receiver_phone":
+                                  friend['phone_number'] ?? "",
+                                  "receiver_name":
+                                  friend['username'] ?? "",
+                                  "message":
+                                  message.isEmpty ? null : message,
+                                  "status": "pending",
+                                  "timestamp":
+                                  FieldValue.serverTimestamp(),
                                 });
 
                                 if (context.mounted) {
@@ -429,20 +477,27 @@ class _homeState extends State<home> {
                                     SnackBar(
                                       content: Row(
                                         children: [
-                                          const Icon(Icons.check_circle_outline,
-                                              color: Colors.white, size: 18),
+                                          const Icon(
+                                            Icons.check_circle_rounded,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
                                           const SizedBox(width: 10),
                                           Text(
                                             "Shared with ${friend['username']}",
                                             style: const TextStyle(
-                                                color: Colors.white),
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
                                         ],
                                       ),
-                                      backgroundColor: const Color(0xFF16A34A),
+                                      backgroundColor:
+                                      const Color(0xFF0095F6),
                                       behavior: SnackBarBehavior.floating,
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius:
+                                        BorderRadius.circular(10),
                                       ),
                                       margin: const EdgeInsets.all(16),
                                     ),
@@ -451,19 +506,19 @@ class _homeState extends State<home> {
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
+                                  horizontal: 16,
                                   vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFD32F2F),
+                                  color: const Color(0xFF0095F6),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Text(
                                   "Send",
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
@@ -476,7 +531,7 @@ class _homeState extends State<home> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
             ],
           ),
         );
@@ -484,7 +539,7 @@ class _homeState extends State<home> {
     ).whenComplete(() => messageController.dispose());
   }
 
-  // 🎨 PRODUCT CARD (UPDATED)
+  // 🎨 INSTAGRAM-STYLE PRODUCT CARD
   Widget productCard(
       Map<String, dynamic> data,
       String productId,
@@ -506,266 +561,25 @@ class _homeState extends State<home> {
       },
       child: Container(
         width: 200,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEFEFEF), width: 1),
         ),
         child: Column(
           children: [
-
-            // ── IMAGE + LIKE & SAVE OVERLAY ──────────────────
+            // ── IMAGE + OVERLAYS ──────────────────────────────
+            // ── IMAGE ─────────────────────────────────────────
             Expanded(
               flex: 5,
-              child: Stack(
-                children: [
-
-                  // IMAGE
-                  ClipRRect(
-                    borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(18)),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: double.infinity,
-                      child: _imageWidget(data),
-                    ),
-                  ),
-
-                  // TOP-RIGHT: SAVE BUTTON
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: user == null
-                        ? const SizedBox.shrink()
-                        : StreamBuilder<DocumentSnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(user.uid)
-                          .collection('saved_products')
-                          .doc(productId)
-                          .snapshots(),
-                      builder: (context, snapshot) {
-                        final isSaved =
-                            snapshot.hasData && snapshot.data!.exists;
-
-                        return GestureDetector(
-                          onTap: () => toggleSave(productId, collection),
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: isSaved
-                                  ? const Color(0xFF1976D2)
-                                  : Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(9),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.12),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              isSaved
-                                  ? Icons.bookmark_rounded
-                                  : Icons.bookmark_outline_rounded,
-                              color: isSaved
-                                  ? Colors.white
-                                  : const Color(0xFF1976D2),
-                              size: 17,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  // TOP-LEFT: LIKE BUTTON
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: user == null
-                        ? const SizedBox.shrink()
-                        : StreamBuilder<DocumentSnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(user.uid)
-                          .collection('liked_products')
-                          .doc(productId)
-                          .snapshots(),
-                      builder: (context, snapshot) {
-                        final isLiked =
-                            snapshot.hasData && snapshot.data!.exists;
-
-                        return GestureDetector(
-                          onTap: () => toggleLike(productId, collection),
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: isLiked
-                                  ? const Color(0xFFD32F2F)
-                                  : Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(9),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.12),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              isLiked
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_outline_rounded,
-                              color: isLiked
-                                  ? Colors.white
-                                  : const Color(0xFFD32F2F),
-                              size: 17,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  // 🔥 REPOST BUTTON
-                  // 🔥 REPOST BUTTON
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      onTap: () async {
-
-                        try {
-
-                          final currentUser =
-                              FirebaseAuth.instance.currentUser;
-
-                          if (currentUser == null) return;
-
-                          // 🔥 GET CURRENT USER INFO
-                          final userDoc = await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(currentUser.uid)
-                              .get();
-
-                          final userData = userDoc.data() ?? {};
-
-                          // 🔥 PREPARE REPOST DATA
-                          final repostData = {
-
-                            // ALL PRODUCT DATA
-                            ...data,
-
-                            // 🔥 IMPORTANT PRODUCT INFO
-                            "productId": productId,
-                            "collection": collection,
-
-                            // 🔥 IMAGE FIX
-                            "image_url": data['image_url'] ??
-                                data['image'] ??
-                                data['photo'] ??
-                                data['product_image'] ??
-                                data['productImage'] ??
-                                data['photoUrl'] ??
-                                (data['images'] != null &&
-                                    data['images'] is List &&
-                                    data['images'].isNotEmpty
-                                    ? data['images'][0]
-                                    : "") ??
-                                "",
-
-                            // 🔥 PRODUCT NAME FIX
-                            "product_name":
-                            data['product_name'] ??
-                                data['name'] ??
-                                "Unknown Product",
-
-                            // 🔥 PRICE FIX
-                            "priceonplatform":
-                            data['priceonplatform'] ??
-                                data['price'] ??
-                                0,
-
-                            // 🔥 DESCRIPTION FIX
-                            "description":
-                            data['description'] ??
-                                "",
-
-                            // 🔥 USER INFO
-                            "repostedByUid": currentUser.uid,
-
-                            "repostedByName":
-                            userData['username'] ??
-                                "Unknown User",
-
-                            "repostedByImage":
-                            userData['profile_url'] ??
-                                "",
-
-                            "repostedByPhone":
-                            userData['phone_number'] ??
-                                "",
-
-                            // 🔥 DATE
-                            "repostedAt":
-                            FieldValue.serverTimestamp(),
-                          };
-
-                          // 🔥 SAVE REPOST
-                          await FirebaseFirestore.instance
-                              .collection("reposts")
-                              .add(repostData);
-
-                          // 🔥 SUCCESS
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "Product reposted successfully",
-                              ),
-                            ),
-                          );
-
-                        } catch (e) {
-
-                          print(e);
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                "Error reposting product: $e",
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.75),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.repeat_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                ],
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: _imageWidget(data),
+                ),
               ),
             ),
 
@@ -773,237 +587,540 @@ class _homeState extends State<home> {
             Expanded(
               flex: 5,
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-
                     Text(
                       data['product_name'] ?? "",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         color: Colors.black,
+                        fontSize: 14,
                       ),
                     ),
-
-                    Text(
-                      "\$${data['priceonplatform']}",
-                      style: const TextStyle(
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          "\$${data['priceonplatform']}",
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFAFAFA),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: const Color(0xFFEFEFEF)),
+                          ),
+                          child: Text(
+                            "${calcPoints(data).toStringAsFixed(0)} pts",
+                            style: const TextStyle(
+                              color: Color(0xFF8E8E8E),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-
-                    Text(
-                      "${calcPoints(data).toStringAsFixed(2)} pts",
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
+                    // ── ACTION ICONS (Like / Save / Repost) ──────────
                     Row(
                       children: [
-
-                        // BUY
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              PurchaseDialog.show(
-                                context: context,
-                                data: data,
-                                onConfirm: (qty, paymentMethod) async {
-                                  await TransactionService.processPurchase(
-                                    productData: {
-                                      ...data,
-                                      "category": collection.replaceFirst(
-                                        "products_",
-                                        "",
-                                      )
-                                    },
-                                    quantity: qty,
-                                    source: "home",
-                                    paymentMethod: paymentMethod,
-                                    productId: productId,
-                                  );
-                                },
+                        // ── LIKE — RED ─────────────────────────────
+                        if (user != null)
+                          StreamBuilder<DocumentSnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .collection('liked_products')
+                                .doc(productId)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              final isLiked = snapshot.hasData && snapshot.data!.exists;
+                              return GestureDetector(
+                                onTap: () => toggleLike(productId, collection),
+                                child: Icon(
+                                  isLiked
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_outline_rounded,
+                                  color: isLiked ? Colors.red : Colors.grey.shade600,
+                                  size: 22,
+                                ),
                               );
                             },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFD32F2F),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text(
-                              "Buy",
-                              style: TextStyle(color: Colors.white),
-                            ),
+                          ),
+                        const SizedBox(width: 16),
+
+                        // ── SAVE — BLUE ────────────────────────────
+                        if (user != null)
+                          StreamBuilder<DocumentSnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .collection('saved_products')
+                                .doc(productId)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              final isSaved = snapshot.hasData && snapshot.data!.exists;
+                              return GestureDetector(
+                                onTap: () => toggleSave(productId, collection),
+                                child: Icon(
+                                  isSaved
+                                      ? Icons.bookmark_rounded
+                                      : Icons.bookmark_outline_rounded,
+                                  color: isSaved ? Colors.blue : Colors.grey.shade600,
+                                  size: 22,
+                                ),
+                              );
+                            },
+                          ),
+                        const SizedBox(width: 16),
+
+                        // ── REPOST — GREEN ─────────────────────────
+                        GestureDetector(
+                          onTap: () async {
+                            try {
+                              final currentUser = FirebaseAuth.instance.currentUser;
+                              if (currentUser == null) return;
+
+                              final userDoc = await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(currentUser.uid)
+                                  .get();
+
+                              final userData = userDoc.data() ?? {};
+
+                              final repostData = {
+                                ...data,
+                                "productId": productId,
+                                "collection": collection,
+                                "image_url": data['image_url'] ??
+                                    data['image'] ??
+                                    data['photo'] ??
+                                    data['product_image'] ??
+                                    data['productImage'] ??
+                                    data['photoUrl'] ??
+                                    (data['images'] != null &&
+                                        data['images'] is List &&
+                                        data['images'].isNotEmpty
+                                        ? data['images'][0]
+                                        : "") ??
+                                    "",
+                                "product_name": data['product_name'] ??
+                                    data['name'] ??
+                                    "Unknown Product",
+                                "priceonplatform":
+                                data['priceonplatform'] ?? data['price'] ?? 0,
+                                "description": data['description'] ?? "",
+                                "repostedByUid": currentUser.uid,
+                                "repostedByName": userData['username'] ?? "Unknown User",
+                                "repostedByImage": userData['profile_url'] ?? "",
+                                "repostedByPhone": userData['phone_number'] ?? "",
+                                "repostedAt": FieldValue.serverTimestamp(),
+                              };
+
+                              await FirebaseFirestore.instance
+                                  .collection("reposts")
+                                  .add(repostData);
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Product reposted successfully"),
+                                ),
+                              );
+                            } catch (e) {
+                              print(e);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Error reposting product: $e")),
+                              );
+                            }
+                          },
+                          child: const Icon(
+                            Icons.repeat_rounded,
+                            color: Colors.green,
+                            size: 22,
                           ),
                         ),
-
-                        const SizedBox(width: 6),
-
-                        // SHARE
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        // BUY — Instagram blue
                         Expanded(
-                          child: ElevatedButton(
-                            onPressed: () =>
-                                shareProduct(data, productId, collection),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1976D2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          child: SizedBox(
+                            height: 32,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                PurchaseDialog.show(
+                                  context: context,
+                                  data: data,
+                                  onConfirm: (qty, paymentMethod) async {
+                                    await TransactionService
+                                        .processPurchase(
+                                      productData: {
+                                        ...data,
+                                        "category": collection.replaceFirst(
+                                          "products_",
+                                          "",
+                                        )
+                                      },
+                                      quantity: qty,
+                                      source: "home",
+                                      paymentMethod: paymentMethod,
+                                      productId: productId,
+                                    );
+                                  },
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0095F6),
+                                elevation: 0,
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                            ),
-                            child: const Text(
-                              "Share",
-                              style: TextStyle(color: Colors.white),
+                              child: const Text(
+                                "Buy",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-
+                        const SizedBox(width: 6),
+                        // SHARE — Instagram outline button
+                        Expanded(
+                          child: SizedBox(
+                            height: 32,
+                            child: ElevatedButton(
+                              onPressed: () => shareProduct(
+                                  data, productId, collection),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black,
+                                elevation: 0,
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: const BorderSide(
+                                      color: Color(0xFFDBDBDB)),
+                                ),
+                              ),
+                              child: const Text(
+                                "Share",
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
             ),
-
           ],
         ),
       ),
     );
   }
 
-  Widget categorySection(String title, String collection, IconData icon) {
+  // 🎨 INSTAGRAM-STYLE CATEGORY HEADER
+  Widget categorySection(
+      String title,
+      String collection,
+      IconData icon,
+      List<Color> gradientColors,
+      ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
+        // ── HEADER (Story-circle inspired) ───────────────
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.blue.shade100),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-
-                Row(
-                  children: [
-                    Icon(icon, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  // Gradient ring around icon (Instagram story style)
+                  Container(
+                    padding: const EdgeInsets.all(2.5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: gradientColors,
                       ),
                     ),
-                  ],
-                ),
-
-                // 🔵 MORE BUTTON (UPDATED)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: GestureDetector(
-                    onTap: () {
-                      openCategoryPage(title, collection);
-                    },
-                    child: const Text(
-                      "MORE",
-                      style: TextStyle(
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                      ),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFFFAFAFA),
+                        ),
+                        child: Icon(
+                          icon,
+                          color: Colors.black,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Trending now",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: () => openCategoryPage(title, collection),
+                child: const Text(
+                  "See all",
+                  style: TextStyle(
+                    color: Color(0xFF0095F6), // Instagram blue
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
-
-              ],
-            ),
+              ),
+            ],
           ),
         ),
 
+        // ── PRODUCTS ROW ─────────────────────────────────
         SizedBox(
-          height: 280,
+          height: 320,
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection(collection)
                 .where('status', isEqualTo: true)
                 .snapshots(),
             builder: (context, snapshot) {
-
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF0095F6),
+                    strokeWidth: 2,
+                  ),
+                );
+              }
+
+              // 🔍 Apply search filter
+              final docs = snapshot.data!.docs.where((doc) {
+                if (_searchQuery.isEmpty) return true;
+                final data = doc.data() as Map<String, dynamic>;
+                final name =
+                (data['product_name'] ?? "").toString().toLowerCase();
+                return name.contains(_searchQuery.toLowerCase());
+              }).toList();
+
+              if (docs.isEmpty) {
+                return Center(
+                  child: Text(
+                    _searchQuery.isEmpty
+                        ? "No products yet"
+                        : "No matches for \"$_searchQuery\"",
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 13,
+                    ),
+                  ),
+                );
               }
 
               return ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: snapshot.data!.docs.length,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemCount: docs.length,
                 itemBuilder: (context, i) {
-                  final doc = snapshot.data!.docs[i];
+                  final doc = docs[i];
                   final data = doc.data() as Map<String, dynamic>;
-
                   return productCard(data, doc.id, collection);
                 },
               );
             },
           ),
         ),
+
+        // Subtle divider between sections (IG-style)
+        Container(
+          margin: const EdgeInsets.only(top: 8),
+          height: 0.5,
+          color: const Color(0xFFEFEFEF),
+        ),
       ],
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Colors.white,
 
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          "Zingo",
-          style: TextStyle(
-              color: Colors.black, fontWeight: FontWeight.bold),
+      // ── INSTAGRAM-STYLE APP BAR WITH SEARCH ─────────────
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(60),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(
+              bottom: BorderSide(color: Color(0xFFEFEFEF), width: 0.5),
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  // 🔍 Search field (Instagram explore style)
+                  Expanded(
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFEFEF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (v) =>
+                            setState(() => _searchQuery = v),
+                        textAlignVertical: TextAlignVertical.center,
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 15,
+                        ),
+                        decoration: InputDecoration(
+                          isCollapsed: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 8),
+                          border: InputBorder.none,
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            color: Color(0xFF8E8E8E),
+                            size: 20,
+                          ),
+                          prefixIconConstraints: const BoxConstraints(
+                              minWidth: 36, minHeight: 36),
+                          suffixIcon: _searchQuery.isEmpty
+                              ? null
+                              : GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = "");
+                            },
+                            child: const Icon(
+                              Icons.cancel,
+                              color: Color(0xFF8E8E8E),
+                              size: 18,
+                            ),
+                          ),
+                          hintText: "Search products, brands…",
+                          hintStyle: const TextStyle(
+                            color: Color(0xFF8E8E8E),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
 
+      // ── BODY ─────────────────────────────────────────────
       body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         child: Column(
           children: [
-
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             const AdvertisementBanner(),
-            categorySection("Electronics", "products_electronics", Icons.devices),
-            categorySection("Fashion", "products_fashion", Icons.checkroom),
-            categorySection("Home", "products_home", Icons.home),
-
-            const SizedBox(height: 20),
+            categorySection(
+              "Electronics",
+              "products_electronics",
+              Icons.devices_rounded,
+              const [
+                Color(0xFFFEDA75),
+                Color(0xFFFA7E1E),
+                Color(0xFFD62976),
+              ],
+            ),
+            categorySection(
+              "Fashion",
+              "products_fashion",
+              Icons.checkroom_rounded,
+              const [
+                Color(0xFF833AB4),
+                Color(0xFFC13584),
+                Color(0xFFE1306C),
+              ],
+            ),
+            categorySection(
+              "Home",
+              "products_home",
+              Icons.home_rounded,
+              const [
+                Color(0xFF405DE6),
+                Color(0xFF5851DB),
+                Color(0xFF833AB4),
+              ],
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
-
 }

@@ -24,6 +24,14 @@ class Net extends StatefulWidget {
 }
 
 class _NetState extends State<Net> {
+  // 🎨 Instagram-style palette
+  static const Color _igBlue = Color(0xFF0095F6);
+  static const Color _igText = Color(0xFF262626);
+  static const Color _igSecondary = Color(0xFF8E8E8E);
+  static const Color _igBorder = Color(0xFFDBDBDB);
+  static const Color _igBg = Color(0xFFFAFAFA);
+  static const Color _igRed = Color(0xFFED4956);
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
 
@@ -38,6 +46,173 @@ class _NetState extends State<Net> {
 
   bool _friendsLoaded = false;
 
+  // 🔥 LOCAL UI STATE (likes/saves) - non-persisted, instant feedback
+  final Set<String> _likedItems = {};
+  final Set<String> _savedItems = {};
+// ──────────────────────────────────────────────────────────
+// 🔎 SEARCHED USERS — finds users matching _searchQuery
+// ──────────────────────────────────────────────────────────
+  List<Map<String, dynamic>> _findMatchingUsers(
+      List<Map<String, dynamic>> suggested) {
+    if (_searchQuery.isEmpty) return [];
+
+    final results = <Map<String, dynamic>>[];
+    final seenPhones = <String>{};
+
+    // a) match inside suggested users
+    for (final user in suggested) {
+      final name = (user['username'] ?? '').toString().toLowerCase();
+      final phone = (user['phone_number'] ?? '').toString();
+      if (phone.isEmpty || seenPhones.contains(phone)) continue;
+      if (name.contains(_searchQuery)) {
+        results.add(user);
+        seenPhones.add(phone);
+      }
+    }
+
+    // b) also match inside friends (already-followed people)
+    for (final entry in _friendInfoByPhone.entries) {
+      final phone = entry.key;
+      final user = entry.value;
+      final name = (user['username'] ?? '').toString().toLowerCase();
+      if (phone.isEmpty || seenPhones.contains(phone)) continue;
+      if (name.contains(_searchQuery)) {
+        results.add(user);
+        seenPhones.add(phone);
+      }
+    }
+
+    return results;
+  }
+
+// ──────────────────────────────────────────────────────────
+// 🔎 SEARCHED USERS SECTION (renders the matching user cards)
+// ──────────────────────────────────────────────────────────
+  Widget _searchedUsersSection(List<Map<String, dynamic>> users) {
+    return Container(
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: _igBorder, width: 0.5),
+              ),
+            ),
+            child: Text(
+              'Users matching "$_searchQuery"',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _igText,
+              ),
+            ),
+          ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: users.length,
+            itemBuilder: (context, i) => _searchedUserTile(users[i]),
+          ),
+          const SizedBox(height: 6),
+          _thinDivider(),
+        ],
+      ),
+    );
+  }
+
+  Widget _searchedUserTile(Map<String, dynamic> user) {
+    final name  = (user['username']     ?? 'User').toString();
+    final phone = (user['phone_number'] ?? '').toString();
+    final image = (user['profile_url']  ?? '').toString();
+    final isFriend = _friendsPhones.contains(phone);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: _igBg,
+            backgroundImage: image.isNotEmpty ? NetworkImage(image) : null,
+            child: image.isEmpty
+                ? Icon(Icons.person, color: Colors.grey.shade400, size: 24)
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: _igText,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isFriend ? "Following" : "Suggested for you",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: _igSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!isFriend)
+            SizedBox(
+              height: 32,
+              child: ElevatedButton(
+                onPressed: () => _addFriend(name, phone, image),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _igBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: const Text(
+                  "Follow",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: _igBg,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: _igBorder),
+              ),
+              child: const Text(
+                "Following",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _igText,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
   @override
   void initState() {
     super.initState();
@@ -51,11 +226,7 @@ class _NetState extends State<Net> {
   }
 
   // ──────────────────────────────────────────────────────────
-  // 🔥 LOAD FRIENDS + RESOLVE THEIR IDS
-  //   NOTE: The `users` collection may be keyed by phone OR uid.
-  //   We grab BOTH (the `uid` field if present, and the doc id),
-  //   so reposts (which match by repostedByUid) work no matter
-  //   how the user docs are structured.
+  // 🔥 LOAD FRIENDS + RESOLVE THEIR IDS  (UNCHANGED)
   // ──────────────────────────────────────────────────────────
   Future<void> _loadFriends() async {
     try {
@@ -75,7 +246,6 @@ class _NetState extends State<Net> {
       _friendInfoByUid.clear();
       _friendInfoByPhone.clear();
 
-      // Resolve phones -> uids in batches of 10 (firestore whereIn limit)
       for (int i = 0; i < phones.length; i += 10) {
         final batch = phones.skip(i).take(10).toList();
         if (batch.isEmpty) continue;
@@ -88,11 +258,6 @@ class _NetState extends State<Net> {
         for (final d in usersSnap.docs) {
           final data = d.data();
           final phone = (data['phone_number'] ?? '').toString();
-
-          // 🔥 IMPORTANT: collect BOTH the `uid` field AND the doc id.
-          // home.dart writes repostedByUid using FirebaseAuth.currentUser.uid,
-          // which may NOT be the same as the firestore doc id (which is
-          // often the phone number). We try both to catch every case.
           final authUid = (data['uid'] ?? '').toString();
           final docId = d.id;
 
@@ -118,9 +283,7 @@ class _NetState extends State<Net> {
       debugPrint(
           "Net: loaded ${_friendsPhones.length} friends, resolved ${_friendsUids.length} ids");
 
-      if (mounted) {
-        setState(() => _friendsLoaded = true);
-      }
+      if (mounted) setState(() => _friendsLoaded = true);
     } catch (e) {
       debugPrint("loadFriends error: $e");
       if (mounted) setState(() => _friendsLoaded = true);
@@ -128,7 +291,7 @@ class _NetState extends State<Net> {
   }
 
   // ──────────────────────────────────────────────────────────
-  // 🔥 IMAGE WIDGET (supports url + base64 + lists)
+  // 🔥 IMAGE WIDGET
   // ──────────────────────────────────────────────────────────
   Widget _imageWidget(dynamic raw, {double? height, double? width}) {
     try {
@@ -170,7 +333,6 @@ class _NetState extends State<Net> {
     }
   }
 
-  /// Extract best available image from a product map (covers many field names)
   dynamic _extractImage(Map<String, dynamic> data) {
     return data['images'] ??
         data['image_url'] ??
@@ -186,8 +348,8 @@ class _NetState extends State<Net> {
     return Container(
       height: height,
       width: width,
-      color: Colors.grey.shade200,
-      child: const Icon(Icons.image_outlined, color: Colors.grey, size: 40),
+      color: _igBg,
+      child: Icon(Icons.image_outlined, color: Colors.grey.shade400, size: 40),
     );
   }
 
@@ -222,14 +384,14 @@ class _NetState extends State<Net> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Added $name to your network"),
-            backgroundColor: const Color(0xFF16A34A),
+            content: Text("Now following $name"),
+            backgroundColor: _igText,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
 
-      // refresh full friends info so their activity appears in the feed
       await _loadFriends();
       if (mounted) setState(() {});
     } catch (e) {
@@ -238,7 +400,7 @@ class _NetState extends State<Net> {
   }
 
   // ──────────────────────────────────────────────────────────
-  // 🔥 BUILD THE FEED — merges reposts + liked products from friends
+  // 🔥 BUILD THE FEED  (UNCHANGED LOGIC)
   // ──────────────────────────────────────────────────────────
   Future<List<Map<String, dynamic>>> _buildFeed() async {
     if (_friendsUids.isEmpty && _friendsPhones.isEmpty) return [];
@@ -246,14 +408,13 @@ class _NetState extends State<Net> {
     final List<Map<String, dynamic>> feed = [];
     final Set<String> seenRepostIds = {};
 
-    // ── 1A) FETCH REPOSTS BY UID ────────────────────────
+    // ── 1A) REPOSTS BY UID ──
     try {
       for (int i = 0; i < _friendsUids.length; i += 10) {
         final batch = _friendsUids.skip(i).take(10).toList();
         if (batch.isEmpty) continue;
 
         try {
-          // Try with ordering first (requires composite index)
           final repostsSnap = await FirebaseFirestore.instance
               .collection('reposts')
               .where('repostedByUid', whereIn: batch)
@@ -274,7 +435,6 @@ class _NetState extends State<Net> {
             });
           }
         } catch (e) {
-          // If composite index missing, retry without orderBy
           debugPrint(
               "reposts ordered query failed, retrying without order: $e");
           try {
@@ -305,8 +465,7 @@ class _NetState extends State<Net> {
       debugPrint("reposts by uid outer error: $e");
     }
 
-    // ── 1B) FETCH REPOSTS BY PHONE (fallback) ───────────
-    // Some reposts may store repostedByPhone even when the uid match fails.
+    // ── 1B) REPOSTS BY PHONE ──
     try {
       for (int i = 0; i < _friendsPhones.length; i += 10) {
         final batch = _friendsPhones.skip(i).take(10).toList();
@@ -339,9 +498,7 @@ class _NetState extends State<Net> {
       debugPrint("reposts by phone outer error: $e");
     }
 
-    debugPrint("Net: fetched ${feed.length} reposts");
-
-    // ── 2) FETCH LIKED PRODUCTS FROM FRIENDS ─────────────
+    // ── 2) LIKED PRODUCTS FROM FRIENDS ──
     try {
       for (final friendUid in _friendsUids) {
         try {
@@ -360,7 +517,6 @@ class _NetState extends State<Net> {
 
             if (productId.isEmpty || collection.isEmpty) continue;
 
-            // fetch actual product
             final productDoc = await FirebaseFirestore.instance
                 .collection(collection)
                 .doc(productId)
@@ -393,7 +549,7 @@ class _NetState extends State<Net> {
       debugPrint("liked outer error: $e");
     }
 
-    // ── 3) SORT BY TIMESTAMP (newest first) ─────────────
+    // ── 3) SORT BY TIMESTAMP ──
     feed.sort((a, b) {
       final ta = a['sort_ts'] as Timestamp?;
       final tb = b['sort_ts'] as Timestamp?;
@@ -403,12 +559,11 @@ class _NetState extends State<Net> {
       return tb.compareTo(ta);
     });
 
-    debugPrint("Net: final feed size = ${feed.length}");
     return feed;
   }
 
   // ──────────────────────────────────────────────────────────
-  // 🔥 FETCH SUGGESTED USERS (not in network, same country)
+  // 🔥 SUGGESTED USERS  (UNCHANGED LOGIC)
   // ──────────────────────────────────────────────────────────
   Future<List<Map<String, dynamic>>> _fetchSuggestedUsers() async {
     try {
@@ -434,28 +589,21 @@ class _NetState extends State<Net> {
     }
   }
 
-  // ──────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════
   // 🎨 BUILD METHOD
-  // ──────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FC),
-      appBar: AppBar(
-        title: const Text(
-          "Network",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
-        ),
-        backgroundColor: Colors.blue,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
+      backgroundColor: Colors.white,
+      appBar: _buildAppBar(),
       body: !_friendsLoaded
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+        child: CircularProgressIndicator(
+          color: _igText,
+          strokeWidth: 2,
+        ),
+      )
           : FutureBuilder<List<dynamic>>(
         future: Future.wait([
           _buildFeed(),
@@ -463,7 +611,12 @@ class _NetState extends State<Net> {
         ]),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(
+                color: _igText,
+                strokeWidth: 2,
+              ),
+            );
           }
 
           final feed =
@@ -475,41 +628,61 @@ class _NetState extends State<Net> {
               suggested.isEmpty &&
               _friendsPhones.isEmpty) {
             return RefreshIndicator(
-              color: Colors.blue,
+              color: _igText,
               onRefresh: () async {
                 await _loadFriends();
                 setState(() {});
               },
               child: ListView(
                 children: [
-                  _searchBar(),
-                  const SizedBox(height: 40),
+
+                  const SizedBox(height: 60),
                   _emptyState(),
                 ],
               ),
             );
           }
 
-          // 🔥 INTERLEAVE SUGGESTED USERS LIKE INSTAGRAM
+          // 🔥 BUILD LIST
           final List<Widget> items = [];
-          items.add(_searchBar());
+
+// 🔎 If user is searching, show matching users at the TOP
+          if (_searchQuery.isNotEmpty) {
+            final matchedUsers = _findMatchingUsers(suggested);
+            if (matchedUsers.isNotEmpty) {
+              items.add(_searchedUsersSection(matchedUsers));
+            }
+          } else {
+            // Stories row (only when NOT searching, otherwise it's noisy)
+            if (suggested.isNotEmpty) {
+              items.add(_storiesRow(suggested.take(12).toList()));
+              items.add(_thinDivider());
+            }
+          }
 
           if (feed.isEmpty) {
             items.add(_noFeedYet());
-            if (suggested.isNotEmpty) {
-              items.add(_suggestedUsersCarousel(suggested));
+            if (suggested.length > 12) {
+              items.add(_suggestedUsersCarousel(
+                  suggested.skip(12).toList()));
             }
           } else {
+            // Use suggested users beyond what we showed in stories
+            final remainingSuggested =
+            suggested.length > 12 ? suggested.skip(12).toList() : [];
             int suggestedIndex = 0;
 
             for (int i = 0; i < feed.length; i++) {
               items.add(_feedItem(feed[i]));
 
-              // every 3 posts, inject suggested users carousel
-              if ((i + 1) % 3 == 0 &&
-                  suggestedIndex < suggested.length) {
-                final chunk =
-                suggested.skip(suggestedIndex).take(6).toList();
+              // inject suggested users carousel every 4 posts
+              if ((i + 1) % 4 == 0 &&
+                  suggestedIndex < remainingSuggested.length) {
+                final chunk = remainingSuggested
+                    .skip(suggestedIndex)
+                    .take(6)
+                    .toList()
+                    .cast<Map<String, dynamic>>();
                 if (chunk.isNotEmpty) {
                   items.add(_suggestedUsersCarousel(chunk));
                   suggestedIndex += 6;
@@ -517,21 +690,24 @@ class _NetState extends State<Net> {
               }
             }
 
-            // append remaining suggested users at the end
-            if (suggestedIndex < suggested.length) {
-              items.add(_suggestedUsersCarousel(
-                  suggested.skip(suggestedIndex).toList()));
+            if (suggestedIndex < remainingSuggested.length) {
+              items.add(_suggestedUsersCarousel(remainingSuggested
+                  .skip(suggestedIndex)
+                  .toList()
+                  .cast<Map<String, dynamic>>()));
             }
+
+            items.add(_endOfFeed());
           }
 
           return RefreshIndicator(
-            color: Colors.blue,
+            color: _igText,
             onRefresh: () async {
               await _loadFriends();
               setState(() {});
             },
             child: ListView(
-              padding: const EdgeInsets.only(bottom: 20),
+              padding: EdgeInsets.zero,
               children: items,
             ),
           );
@@ -541,184 +717,234 @@ class _NetState extends State<Net> {
   }
 
   // ──────────────────────────────────────────────────────────
-  // 🔍 SEARCH BAR
+  // 🎨 APP BAR (Instagram style)
   // ──────────────────────────────────────────────────────────
-  Widget _searchBar() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.white,
+      automaticallyImplyLeading: false,
+
+      title: Container(
+        height: 45,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-            )
-          ],
+          color: const Color(0xFFF2F2F2),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: TextField(
           controller: _searchController,
-          onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
-          decoration: const InputDecoration(
-            hintText: "Search your network...",
-            prefixIcon: Icon(Icons.search, color: Colors.blue),
-            border: InputBorder.none,
+          style: const TextStyle(
+            color: Colors.black, // typed text color
+            fontSize: 15,
           ),
+          onChanged: (value) {
+            setState(() => _searchQuery = value.toLowerCase());
+          },
+          decoration: InputDecoration(
+            hintText: "Search...",
+            hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+            prefixIcon: const Icon(Icons.search, color: Colors.grey),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
+      ),
+
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(0.5),
+        child: Container(
+          height: 0.5,
+          color: _igBorder,
         ),
       ),
     );
   }
 
   // ──────────────────────────────────────────────────────────
-  // 🔥 FEED ITEM — repost or liked product
+  // 🔍 SEARCH BAR (IG style — pill, light grey)
+  // ──────────────────────────────────────────────────────────
+  /*Widget _searchBar() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFEFEF),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.search, color: _igSecondary, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                cursorColor: _igText,
+                onChanged: (v) =>
+                    setState(() => _searchQuery = v.toLowerCase()),
+                style: const TextStyle(fontSize: 14, color: _igText),
+                decoration: const InputDecoration(
+                  hintText: "Search",
+                  hintStyle: TextStyle(color: _igSecondary, fontSize: 14),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+            if (_searchQuery.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = "");
+                },
+                child: const Icon(Icons.cancel,
+                    color: _igSecondary, size: 18),
+              ),
+          ],
+        ),
+      ),
+    );
+  }*/
+
+  // ──────────────────────────────────────────────────────────
+  // 📖 STORIES ROW (suggested users as story bubbles)
+  // ──────────────────────────────────────────────────────────
+  Widget _storiesRow(List<Map<String, dynamic>> users) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: SizedBox(
+        height: 110,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          itemCount: users.length,
+          itemBuilder: (context, i) => _storyAvatar(users[i]),
+        ),
+      ),
+    );
+  }
+
+  Widget _storyAvatar(Map<String, dynamic> user) {
+    final name = (user['username'] ?? 'User').toString();
+    final phone = (user['phone_number'] ?? '').toString();
+    final image = (user['profile_url'] ?? '').toString();
+
+    return GestureDetector(
+      onTap: () => _showUserProfile(user),
+      child: Container(
+        width: 130,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _igBorder, width: 0.6),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: _igBg,
+                  backgroundImage:
+                  image.isNotEmpty ? NetworkImage(image) : null,
+                  child: image.isEmpty
+                      ? Icon(Icons.person,
+                      color: Colors.grey.shade400, size: 26)
+                      : null,
+                ),
+                Positioned(
+                  bottom: -2,
+                  right: -2,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: _igBlue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(Icons.add,
+                        color: Colors.white, size: 12),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                color: _igText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  // ──────────────────────────────────────────────────────────
+  // 🔥 FEED ITEM
   // ──────────────────────────────────────────────────────────
   Widget _feedItem(Map<String, dynamic> item) {
-    if (item['type'] == 'repost') {
-      return _repostCard(item);
-    } else {
-      return _likedCard(item);
-    }
+    if (item['type'] == 'repost') return _repostCard(item);
+    return _likedCard(item);
   }
 
   // ──────────────────────────────────────────────────────────
-  // 🔁 REPOST CARD (Instagram-style)
+  // 🔁 REPOST CARD
   // ──────────────────────────────────────────────────────────
   Widget _repostCard(Map<String, dynamic> item) {
     final d = item['data'] as Map<String, dynamic>;
     final productId = (d['productId'] ?? '').toString();
     final collection = (d['collection'] ?? '').toString();
+    final docId = item['doc_id'] as String;
 
-    final userName = d['repostedByName'] ?? 'User';
+    final userName = (d['repostedByName'] ?? 'User').toString();
     final userImage = (d['repostedByImage'] ?? '').toString();
-    final productName = d['product_name'] ?? '';
+    final productName = (d['product_name'] ?? '').toString();
     final price = d['priceonplatform'] ?? 0;
     final image = _extractImage(d);
     final ts = d['repostedAt'] as Timestamp?;
 
-    // search filter
     if (_searchQuery.isNotEmpty &&
-        !productName.toString().toLowerCase().contains(_searchQuery) &&
-        !userName.toString().toLowerCase().contains(_searchQuery)) {
+        !productName.toLowerCase().contains(_searchQuery) &&
+        !userName.toLowerCase().contains(_searchQuery)) {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── HEADER ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.blue.shade100,
-                  backgroundImage:
-                  userImage.isNotEmpty ? NetworkImage(userImage) : null,
-                  child: userImage.isEmpty
-                      ? const Icon(Icons.person,
-                      color: Colors.white, size: 20)
-                      : null,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      RichText(
-                        text: TextSpan(
-                          style: const TextStyle(color: Colors.black),
-                          children: [
-                            TextSpan(
-                              text: userName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const TextSpan(
-                              text: "  reposted",
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _timeAgo(ts),
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.75),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.repeat_rounded,
-                          color: Colors.white, size: 12),
-                      SizedBox(width: 4),
-                      Text(
-                        "Repost",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── PRODUCT IMAGE ──
-          GestureDetector(
-            onTap: () => _openProduct(d, productId, collection),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: _imageWidget(image),
-            ),
-          ),
-
-          // ── PRODUCT INFO + ACTIONS ──
-          _productFooter(
-            productName: productName.toString(),
-            price: price,
-            points: _calcPoints(d),
-            onBuy: () => _buyProduct(d, productId, collection),
-            onView: () => _openProduct(d, productId, collection),
-          ),
-        ],
-      ),
+    return _instagramPost(
+      itemId: docId,
+      userName: userName,
+      userImage: userImage,
+      actionLabel: "reposted",
+      actionIcon: Icons.repeat_rounded,
+      image: image,
+      productName: productName,
+      price: price,
+      points: _calcPoints(d),
+      timestamp: ts,
+      onTap: () => _openProduct(d, productId, collection),
+      onBuy: () => _buyProduct(d, productId, collection),
     );
   }
 
@@ -731,211 +957,309 @@ class _NetState extends State<Net> {
     final productId = item['productId'] as String;
     final collection = item['collection'] as String;
     final ts = item['sort_ts'] as Timestamp?;
+    final docId = item['doc_id'] as String;
 
-    final userName = friend['username'] ?? 'Friend';
+    final userName = (friend['username'] ?? 'Friend').toString();
     final userImage = (friend['profile_url'] ?? '').toString();
-    final productName = d['product_name'] ?? '';
+    final productName = (d['product_name'] ?? '').toString();
     final price = d['priceonplatform'] ?? 0;
     final image = _extractImage(d);
 
     if (_searchQuery.isNotEmpty &&
-        !productName.toString().toLowerCase().contains(_searchQuery) &&
-        !userName.toString().toLowerCase().contains(_searchQuery)) {
+        !productName.toLowerCase().contains(_searchQuery) &&
+        !userName.toLowerCase().contains(_searchQuery)) {
       return const SizedBox.shrink();
     }
 
+    return _instagramPost(
+      itemId: docId,
+      userName: userName,
+      userImage: userImage,
+      actionLabel: "liked",
+      actionIcon: Icons.favorite,
+      image: image,
+      productName: productName,
+      price: price,
+      points: _calcPoints(d),
+      timestamp: ts,
+      onTap: () => _openProduct(d, productId, collection),
+      onBuy: () => _buyProduct(d, productId, collection),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // 🎨 THE INSTAGRAM POST WIDGET
+  // ──────────────────────────────────────────────────────────
+  Widget _instagramPost({
+    required String itemId,
+    required String userName,
+    required String userImage,
+    required String actionLabel,
+    required IconData actionIcon,
+    required dynamic image,
+    required String productName,
+    required dynamic price,
+    required double points,
+    required Timestamp? timestamp,
+    required VoidCallback onTap,
+    required VoidCallback onBuy,
+  }) {
+    final isLiked = _likedItems.contains(itemId);
+    final isSaved = _savedItems.contains(itemId);
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── HEADER ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.red.shade100,
-                  backgroundImage:
-                  userImage.isNotEmpty ? NetworkImage(userImage) : null,
-                  child: userImage.isEmpty
-                      ? const Icon(Icons.person,
-                      color: Colors.white, size: 20)
-                      : null,
+                Container(
+                  padding: const EdgeInsets.all(1.5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _igBorder, width: 0.5),
+                  ),
+                  child: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: _igBg,
+                    backgroundImage:
+                    userImage.isNotEmpty ? NetworkImage(userImage) : null,
+                    child: userImage.isEmpty
+                        ? Icon(Icons.person,
+                        color: Colors.grey.shade400, size: 18)
+                        : null,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      RichText(
-                        text: TextSpan(
-                          style: const TextStyle(color: Colors.black),
-                          children: [
-                            TextSpan(
-                              text: userName,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              userName,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13.5,
+                                color: _igText,
                               ),
                             ),
-                            const TextSpan(
-                              text: "  liked this",
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 13,
-                              ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(actionIcon,
+                              size: 11,
+                              color: actionLabel == "liked"
+                                  ? _igRed
+                                  : _igSecondary),
+                          const SizedBox(width: 3),
+                          Text(
+                            actionLabel,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: _igSecondary,
+                              fontWeight: FontWeight.w400,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
-                        _timeAgo(ts),
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
+                        _timeAgo(timestamp),
+                        style: const TextStyle(
                           fontSize: 11,
+                          color: _igSecondary,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD32F2F).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.favorite,
-                    color: Color(0xFFD32F2F),
-                    size: 16,
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.more_horiz, size: 22),
+                  color: _igText,
+                  onPressed: () => _showPostOptions(userName),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                      minWidth: 40, minHeight: 40),
                 ),
               ],
             ),
           ),
 
-          // ── IMAGE ──
+          // ── IMAGE (square, edge-to-edge) ──
           GestureDetector(
-            onTap: () => _openProduct(d, productId, collection),
+            onTap: onTap,
+            onDoubleTap: () {
+              setState(() {
+                if (_likedItems.contains(itemId)) {
+                  _likedItems.remove(itemId);
+                } else {
+                  _likedItems.add(itemId);
+                }
+              });
+            },
             child: AspectRatio(
               aspectRatio: 1,
-              child: _imageWidget(image),
+              child: Container(
+                color: _igBg,
+                child: _imageWidget(image),
+              ),
             ),
           ),
 
-          // ── INFO ──
-          _productFooter(
-            productName: productName.toString(),
-            price: price,
-            points: _calcPoints(d),
-            onBuy: () => _buyProduct(d, productId, collection),
-            onView: () => _openProduct(d, productId, collection),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ──────────────────────────────────────────────────────────
-  // 🧱 SHARED FOOTER (product name, price, buttons)
-  // ──────────────────────────────────────────────────────────
-  Widget _productFooter({
-    required String productName,
-    required dynamic price,
-    required double points,
-    required VoidCallback onBuy,
-    required VoidCallback onView,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            productName,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
+          // ── ACTION ROW ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    isLiked ? Icons.favorite : Icons.favorite_border,
+                    size: 26,
+                    color: isLiked ? _igRed : _igText,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      if (isLiked) {
+                        _likedItems.remove(itemId);
+                      } else {
+                        _likedItems.add(itemId);
+                      }
+                    });
+                  },
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  constraints: const BoxConstraints(),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(
+                    isSaved ? Icons.bookmark : Icons.bookmark_border,
+                    size: 26,
+                  ),
+                  color: _igText,
+                  onPressed: () {
+                    setState(() {
+                      if (isSaved) {
+                        _savedItems.remove(itemId);
+                      } else {
+                        _savedItems.add(itemId);
+                      }
+                    });
+                  },
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Text(
-                "\$$price",
+
+          // ── LIKES COUNT ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 2, 14, 4),
+            child: Text(
+              isLiked ? "Liked by you and others" : "Be the first to like",
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _igText,
+              ),
+            ),
+          ),
+
+          // ── CAPTION (username + product name) ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+            child: RichText(
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
                 style: const TextStyle(
-                  color: Colors.green,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                    color: _igText, fontSize: 13.5, height: 1.3),
+                children: [
+                  TextSpan(
+                    text: "$userName ",
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(text: productName),
+                ],
               ),
-              const Spacer(),
-              Text(
-                "${points.toStringAsFixed(2)} pts",
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onBuy,
-                  icon: const Icon(Icons.shopping_bag_outlined,
-                      size: 16, color: Colors.white),
-                  label: const Text(
-                    "Buy Now",
-                    style: TextStyle(color: Colors.white),
+
+          // ── VIEW COMMENTS ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 2, 14, 4),
+            child: GestureDetector(
+              onTap: onTap,
+              child: const Text(
+                "View product details",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: _igSecondary,
+                ),
+              ),
+            ),
+          ),
+
+          // ── PRICE + POINTS + SHOP BUTTON ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+            child: Row(
+              children: [
+                Text(
+                  "\$$price",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: _igText,
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD32F2F),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF6E0),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    "+${points.toStringAsFixed(2)} pts",
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.amber.shade800,
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onView,
-                  icon: const Icon(Icons.visibility_outlined,
-                      size: 16, color: Colors.blue),
-                  label: const Text(
-                    "View",
-                    style: TextStyle(color: Colors.blue),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.blue),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                const Spacer(),
+                GestureDetector(
+                  onTap: onBuy,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: _igBlue,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      "Buy now",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -943,49 +1267,42 @@ class _NetState extends State<Net> {
   }
 
   // ──────────────────────────────────────────────────────────
-  // 👥 SUGGESTED USERS CAROUSEL
+  // 👥 SUGGESTED USERS CAROUSEL (mid-feed, IG style)
   // ──────────────────────────────────────────────────────────
   Widget _suggestedUsersCarousel(List<Map<String, dynamic>> users) {
     if (users.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(color: _igBorder, width: 0.5),
+                bottom: BorderSide(color: _igBorder, width: 0.5),
+              ),
+            ),
             child: Row(
               children: [
-                const Icon(Icons.group_add_outlined,
-                    color: Colors.blue, size: 18),
-                const SizedBox(width: 8),
                 const Text(
                   "Suggested for you",
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    fontWeight: FontWeight.w600,
+                    color: _igText,
                   ),
                 ),
                 const Spacer(),
                 Text(
-                  "From ${widget.country}",
+                  "See All",
                   style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade500,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _igText,
                   ),
                 ),
               ],
@@ -993,17 +1310,15 @@ class _NetState extends State<Net> {
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 200,
+            height: 230,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               itemCount: users.length,
-              itemBuilder: (context, i) {
-                final u = users[i];
-                return _suggestedUserCard(u);
-              },
+              itemBuilder: (context, i) => _suggestedUserCard(users[i]),
             ),
           ),
+          const SizedBox(height: 14),
         ],
       ),
     );
@@ -1015,72 +1330,320 @@ class _NetState extends State<Net> {
     final image = (user['profile_url'] ?? '').toString();
 
     return Container(
-      width: 140,
-      margin: const EdgeInsets.symmetric(horizontal: 5),
-      padding: const EdgeInsets.all(10),
+      width: 130,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: _igBorder, width: 0.5),
       ),
       child: Column(
         children: [
+          const SizedBox(height: 14),
           CircleAvatar(
-            radius: 32,
-            backgroundColor: Colors.blue.shade100,
+            radius: 30,
+            backgroundColor: _igBg,
             backgroundImage: image.isNotEmpty ? NetworkImage(image) : null,
             child: image.isEmpty
-                ? const Icon(Icons.person, color: Colors.white, size: 32)
+                ? Icon(Icons.person, color: Colors.grey.shade400, size: 30)
                 : null,
           ),
           const SizedBox(height: 8),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: _igText,
+              ),
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            "Suggested",
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 10,
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _addFriend(name, phone, image),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                "Follow",
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              "Suggested for you",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _igSecondary,
+                fontSize: 11,
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: SizedBox(
+              width: double.infinity,
+              height: 30,
+              child: ElevatedButton(
+                onPressed: () => _addFriend(name, phone, image),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _igBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: const Text(
+                  "Follow",
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
         ],
       ),
     );
   }
 
   // ──────────────────────────────────────────────────────────
-  // 🛒 OPEN PRODUCT DETAILS
+  // ⚙️ POST OPTIONS BOTTOM SHEET (Instagram-style)
+  // ──────────────────────────────────────────────────────────
+  void _showPostOptions(String userName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+        BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _bottomSheetTile(
+                  Icons.bookmark_border, "Save", _igText, () {
+                Navigator.pop(ctx);
+              }),
+              _bottomSheetTile(Icons.link, "Copy link", _igText, () {
+                Navigator.pop(ctx);
+              }),
+              _bottomSheetTile(
+                  Icons.share_outlined, "Share to...", _igText, () {
+                Navigator.pop(ctx);
+              }),
+              _bottomSheetTile(
+                  Icons.flag_outlined, "Report", _igRed, () {
+                Navigator.pop(ctx);
+              }),
+              _bottomSheetTile(
+                  Icons.person_remove_outlined, "Unfollow $userName",
+                  _igRed, () {
+                Navigator.pop(ctx);
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _bottomSheetTile(
+      IconData icon, String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                color: color,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+// ──────────────────────────────────────────────────────────
+// 👤 USER PROFILE POPUP
+// ──────────────────────────────────────────────────────────
+  void _showUserProfile(Map<String, dynamic> user) {
+    final name    = (user['username']     ?? 'User').toString();
+    final phone   = (user['phone_number'] ?? '').toString();
+    final image   = (user['profile_url']  ?? '').toString();
+    final country = (user['country']      ?? '—').toString();
+
+    // try common field names for join date
+    final joinedAt = user['created_at']
+        ?? user['createdAt']
+        ?? user['joined_at']
+        ?? user['joinedAt']
+        ?? user['signup_date'];
+
+    String joinDateStr = '—';
+    if (joinedAt is Timestamp) {
+      final d = joinedAt.toDate();
+      const months = ['Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec'];
+      joinDateStr = '${months[d.month - 1]} ${d.day}, ${d.year}';
+    }
+
+    final isFriend = _friendsPhones.contains(phone);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Profile image with IG-style ring
+              // Profile image (plain, no story ring)
+              CircleAvatar(
+                radius: 46,
+                backgroundColor: _igBg,
+                backgroundImage: image.isNotEmpty ? NetworkImage(image) : null,
+                child: image.isEmpty
+                    ? Icon(Icons.person, color: Colors.grey.shade400, size: 48)
+                    : null,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: _igText,
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Info card
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _igBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    _profileInfoRow(Icons.location_on_outlined, "Country", country),
+                    const SizedBox(height: 12),
+                    _profileInfoRow(Icons.phone_outlined, "Phone",
+                        phone.isEmpty ? '—' : phone),
+                    const SizedBox(height: 12),
+                    _profileInfoRow(Icons.calendar_today_outlined, "Joined", joinDateStr),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Action buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _igText,
+                        side: const BorderSide(color: _igBorder),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text("Close",
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  if (!isFriend && phone.isNotEmpty) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _addFriend(name, phone, image);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _igBlue,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text("Follow",
+                            style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _profileInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: _igSecondary),
+        const SizedBox(width: 12),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            color: _igSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const Spacer(),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13.5,
+              color: _igText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  // ──────────────────────────────────────────────────────────
+  // 🛒 ACTIONS
   // ──────────────────────────────────────────────────────────
   void _openProduct(
       Map<String, dynamic> data, String productId, String collection) {
@@ -1121,66 +1684,116 @@ class _NetState extends State<Net> {
   // 🧰 HELPERS
   // ──────────────────────────────────────────────────────────
   String _timeAgo(Timestamp? ts) {
-    if (ts == null) return "Just now";
+    if (ts == null) return "now";
     final diff = DateTime.now().difference(ts.toDate());
-    if (diff.inSeconds < 60) return "${diff.inSeconds}s ago";
-    if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
-    if (diff.inHours < 24) return "${diff.inHours}h ago";
-    if (diff.inDays < 7) return "${diff.inDays}d ago";
-    if (diff.inDays < 30) return "${(diff.inDays / 7).floor()}w ago";
-    return "${(diff.inDays / 30).floor()}mo ago";
+    if (diff.inSeconds < 60) return "${diff.inSeconds}s";
+    if (diff.inMinutes < 60) return "${diff.inMinutes}m";
+    if (diff.inHours < 24) return "${diff.inHours}h";
+    if (diff.inDays < 7) return "${diff.inDays}d";
+    if (diff.inDays < 30) return "${(diff.inDays / 7).floor()}w";
+    return "${(diff.inDays / 30).floor()}mo";
+  }
+
+  Widget _thinDivider() {
+    return Container(
+      height: 0.5,
+      color: _igBorder,
+    );
   }
 
   Widget _emptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people_outline,
-              size: 70, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          const Text(
-            "Your network is empty",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: _igText, width: 2),
+              ),
+              child: const Icon(Icons.person_outline,
+                  size: 50, color: _igText),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "Add friends to see their activity here",
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-        ],
+            const SizedBox(height: 20),
+            const Text(
+              "Your feed is empty",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w300,
+                color: _igText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "When you follow people, you'll see their reposts and likes here.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _igSecondary, fontSize: 14, height: 1.4),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _noFeedYet() {
     return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-      ),
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
       child: Column(
         children: [
-          Icon(Icons.dynamic_feed_outlined,
-              size: 50, color: Colors.grey.shade400),
-          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: _igText, width: 1.5),
+            ),
+            child: const Icon(Icons.camera_alt_outlined,
+                size: 38, color: _igText),
+          ),
+          const SizedBox(height: 16),
           const Text(
-            "No activity from your network yet",
+            "No Posts Yet",
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w300,
+              color: _igText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "Follow more people to see their activity in your feed.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _igSecondary, fontSize: 13, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _endOfFeed() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 30),
+      child: Column(
+        children: [
+          Icon(Icons.check_circle_outline,
+              color: Colors.grey.shade400, size: 32),
+          const SizedBox(height: 8),
+          const Text(
+            "You're all caught up",
             style: TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w500,
+              color: _igText,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            "Follow more people below to see their reposts and likes",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            "You've seen all new posts from your network",
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
           ),
         ],
       ),
